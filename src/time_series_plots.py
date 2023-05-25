@@ -36,23 +36,30 @@ def plot_recurrence(time_series, delay = 1, eps = 0.05, filename = ""):
     time_series = np.array([time_series])
 
     # initiate a recurrence plot
-    recurrence_info = RecurrencePlot(time_delay=delay, threshold=eps)
+    try:
+        recurrence_info = RecurrencePlot(time_delay=delay, threshold=eps)
 
-    # transform time series into a recurrence plot
-    my_recurrence_plot = recurrence_info.transform(time_series)
+        # transform time series into a recurrence plot
+        my_recurrence_plot = recurrence_info.transform(time_series)
 
-    # plot figure
-    plt.figure(figsize=(5,5))
-    plt.imshow(my_recurrence_plot[0], cmap = "binary", origin = "lower")
-    plt.title("Recurrence Plot", fontsize = 18)
-    plt.tight_layout()
+        # plot figure
+        plt.figure(figsize=(5, 5))
+        plt.imshow(my_recurrence_plot[0], cmap="binary", origin="lower")
+        plt.title("Recurrence Plot", fontsize=18)
+        plt.tight_layout()
 
-    # save plot iff filename is provided
-    if filename != "":
-        plt.savefig("../results/figures/recurrence_plot_" + filename)
+        # save plot iff filename is provided
+        if filename != "":
+            plt.savefig("../results/figures/recurrence_plot_" + filename)
 
-    # show plot
-    plt.show()
+        # show plot
+        plt.show()
+
+    except:
+        print("An exception occurred. Are you sure time_delay is an integer"
+              " and threshold a double?")
+
+
 
 def plot_autocorrelation(time_series, filename = ""):
     """
@@ -79,7 +86,7 @@ if __name__ == "__main__":
     plot_time_series(time_series_x, filename="sin")
 
     # Create, save and show recurrence plot
-    recurrence_plot = plot_recurrence(time_series_x, delay = 1, eps = np.pi/18, filename = "sin")
+    plot_recurrence(time_series_x, delay = 1.575, eps = np.pi/18, filename = "sin")
 
     # Plot autocorrelation plot
     plot_autocorrelation(time_series_x, filename="sin")
