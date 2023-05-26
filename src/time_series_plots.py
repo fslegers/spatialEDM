@@ -82,11 +82,7 @@ if __name__ == "__main__":
     time_points = np.linspace(0, 4 * np.pi, 1000)
     time_series_x = np.sin(time_points)
 
-    # Plot time series
+    # Make plots (time series, recurrence and ACP)
     plot_time_series(time_series_x, filename="sin")
-
-    # Create, save and show recurrence plot
     plot_recurrence(time_series_x, delay = 1.575, eps = np.pi/18, filename = "sin")
-
-    # Plot autocorrelation plot
     plot_autocorrelation(time_series_x, filename="sin")
