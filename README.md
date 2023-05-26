@@ -43,18 +43,11 @@ methods for nonlinear time series analysis, like state space reconstruction and 
 
 ## Installation
 
-This program uses the following packages:
-- deeptime
-- numpy
-- mpt_toolkits.mplot3d.art3d
-- matplotlib.pyplot
-- pyts.image
-- statsmodels.graphics.tsaplots
+This project is created in Python version 3.1.1.
 
+### Requirements
 
-## Usage
-
-...
+The requirements.txt file contains the packages this program depends on. 
 
 ## License
 
