@@ -76,18 +76,19 @@ def simulate_additive_white_noise(delta_t = 2e-5, t_max = 100, noise = 0.05):
 
 if __name__ == "__main__":
     # simulate a additive white Gausian noise trajectory
-    white_noise = simulate_additive_white_noise(t_max = 40, noise = 0.1)
+    white_noise = simulate_additive_white_noise(delta_t = 2e-3, t_max = 4, noise = 0.1)
+    white_noise = np.ndarray.transpose(np.array(white_noise))
+
+    # simulate a trajectory of the Lorenz system with noise
+    lorenz_trajectory = simulate_lorenz(vec0=np.array([1, 2, 3]), t_max=5000, noise=0.005)
+
+    # sample the time series for the x coordinate
+    lorenz_x = lorenz_trajectory[3000:5500, 0]
 
     # show plots for this time series
     plot_time_series(white_noise, filename="white_noise")
     plot_autocorrelation(white_noise, filename="white_noise")
     plot_recurrence(white_noise, delay=1, eps=0.5, filename="white_noise")
-
-    # simulate a trajectory of the Lorenz system with noise
-    lorenz_trajectory = simulate_lorenz(vec0 = np.array([1,2,3]), t_max = 5000, noise = 0.005)
-
-    # sample the time series for the x coordinate
-    lorenz_x = lorenz_trajectory[3000:5500, 0]
 
     # show plots for this time series
     plot_time_series(lorenz_x, filename="lorenz")
@@ -103,4 +104,4 @@ if __name__ == "__main__":
     # show plots for this time series
     plot_time_series(thomas_x, filename="thomas")
     plot_autocorrelation(thomas_x, filename="thomas")
-    plot_recurrence(thomas_x[1:100], delay=3, eps=0.3, filename="thomas")
+    plot_recurrence(thomas_x[1:1200], delay=1, eps=0.2, filename="thomas")

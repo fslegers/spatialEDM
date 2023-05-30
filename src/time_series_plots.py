@@ -65,8 +65,10 @@ def plot_autocorrelation(time_series, filename = ""):
     Saves plot if a filename is given.
     """
     # Determine which lags to show on the x-axis
-    if (len(time_series) > 50):
-        lags = np.arange(0, len(time_series), step = len(time_series) / 50)
+    n_col = np.shape(time_series)[0]
+
+    if (n_col > 50):
+        lags = np.arange(0, len(time_series), step = n_col / 50)
     else:
         lags = np.arange(0, len(time_series))
 
