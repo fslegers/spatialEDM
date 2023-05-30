@@ -68,9 +68,9 @@ def plot_autocorrelation(time_series, filename = ""):
     n_col = np.shape(time_series)[0]
 
     if (n_col > 50):
-        lags = np.arange(0, len(time_series), step = n_col / 50)
+        lags = np.arange(0, np.floor(.5*len(time_series)), step = n_col / 50)
     else:
-        lags = np.arange(0, len(time_series))
+        lags = np.arange(0, np.floor(.5*len(time_series)))
 
     plt.figure(figsize=(5, 5))
     plot_acf(time_series, lags = np.array(lags))
@@ -90,9 +90,9 @@ def plot_partial_autocorrelation(time_series, filename = ""):
         """
     # Determine which lags to show on the x-axis
     if (len(time_series) > 50):
-        lags = np.arange(0, len(time_series), step=len(time_series) / 50)
+        lags = np.arange(0, np.floor(0.5*len(time_series)), step=len(time_series) / 50)
     else:
-        lags = np.arange(0, len(time_series))
+        lags = np.arange(0, np.floor(0.5*len(time_series)))
 
     plt.figure(figsize=(5, 5))
     plot_pacf(time_series, lags=np.array(lags))
@@ -105,6 +105,7 @@ def plot_partial_autocorrelation(time_series, filename = ""):
 
     plt.show()
 
+#TODO
 def plot_3D(filename = ""):
     return 0
 
@@ -114,6 +115,7 @@ if __name__ == "__main__":
     time_series_x = np.sin(time_points)
 
     # Make plots (time series, recurrence and ACP)
-    plot_time_series(time_series_x, filename="sin")
-    plot_recurrence(time_series_x, delay = 1.575, eps = np.pi/18, filename = "sin")
-    plot_autocorrelation(time_series_x, filename="sin")
+    #plot_time_series(time_series_x, filename="sin")
+    #plot_recurrence(time_series_x, delay = 1.575, eps = np.pi/18, filename = "sin")
+    #plot_autocorrelation(time_series_x, filename="sin")
+    #plot_partial_autocorrelation(time_series_x)

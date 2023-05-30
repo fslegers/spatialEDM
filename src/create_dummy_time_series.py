@@ -73,35 +73,25 @@ def simulate_additive_white_noise(delta_t = 2e-5, t_max = 100, noise = 0.05):
         timer += delta_t
     return trajectory
 
+def plot_dynamical_system(name = "Lorenz", var = 0):
+    #TODO Add variables to above function call
+    if(name == "Lorenz"):
+        trajectory = simulate_lorenz(vec0=np.array([1, 2, 3]), t_max=5000, noise=0.005)
+        time_series = trajectory[:, var]
+
+    elif(name == "Thomas"):
+        trajectory = simulate_thomas(vec0=np.array([1, 2, 3]), t_max=2500, noise=0.005)
+        time_series = trajectory[:, var]
+    else:
+        time_series = simulate_additive_white_noise(delta_t=2e-3, t_max=4, noise=0.1)
+        time_series = np.ndarray.transpose(np.array(time_series))
+
+    plot_time_series(time_series, filename=name)
+    plot_autocorrelation(time_series, filename=name)
+    plot_recurrence(time_series, delay=1, eps=0.5, filename=name)
+
 
 if __name__ == "__main__":
-    # simulate a additive white Gausian noise trajectory
-    white_noise = simulate_additive_white_noise(delta_t = 2e-3, t_max = 4, noise = 0.1)
-    white_noise = np.ndarray.transpose(np.array(white_noise))
-
-    # simulate a trajectory of the Lorenz system with noise
-    lorenz_trajectory = simulate_lorenz(vec0=np.array([1, 2, 3]), t_max=5000, noise=0.005)
-
-    # sample the time series for the x coordinate
-    lorenz_x = lorenz_trajectory[3000:5500, 0]
-
-    # show plots for this time series
-    plot_time_series(white_noise, filename="white_noise")
-    plot_autocorrelation(white_noise, filename="white_noise")
-    plot_recurrence(white_noise, delay=1, eps=0.5, filename="white_noise")
-
-    # show plots for this time series
-    plot_time_series(lorenz_x, filename="lorenz")
-    plot_autocorrelation(lorenz_x, filename="lorenz")
-    plot_recurrence(lorenz_x, delay = 2, eps = 0.5, filename="lorenz")
-
-    # simulate a trajectory of the Thomas attractor
-    thomas_trajectory = simulate_thomas(vec0 = np.array([1,2,3]), t_max=2500, noise=0.005)
-
-    # sample the time series for the x coordinate
-    thomas_x = thomas_trajectory[:, 0]
-
-    # show plots for this time series
-    plot_time_series(thomas_x, filename="thomas")
-    plot_autocorrelation(thomas_x, filename="thomas")
-    plot_recurrence(thomas_x[1:1200], delay=1, eps=0.2, filename="thomas")
+    plot_dynamical_system("Lorenz")
+    plot_dynamical_system("Thomas")
+    plot_dynamical_system()
