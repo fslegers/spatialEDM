@@ -1,9 +1,9 @@
 """packages used in this file"""
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib.animation as animation
 from pyts.image import RecurrencePlot
 from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
+from mayavi import mlab
 
 def plot_time_series(time_series, filename = ""):
     """
@@ -68,7 +68,7 @@ def plot_autocorrelation(time_series, filename = ""):
     # Determine which lags to show on the x-axis
     n_col = np.shape(time_series)[0]
 
-    if (n_col > 50):
+    if n_col > 50:
         lags = np.arange(0, np.floor(.5*len(time_series)), step = n_col / 50)
     else:
         lags = np.arange(0, np.floor(.5*len(time_series)))
@@ -90,7 +90,7 @@ def plot_partial_autocorrelation(time_series, filename = ""):
         Saves plot if a filename is given.
         """
     # Determine which lags to show on the x-axis
-    if (len(time_series) > 50):
+    if len(time_series) > 50:
         lags = np.arange(0, np.floor(0.5*len(time_series)), step=len(time_series) / 50)
     else:
         lags = np.arange(0, np.floor(0.5*len(time_series)))
@@ -107,7 +107,7 @@ def plot_partial_autocorrelation(time_series, filename = ""):
     plt.show()
 
 #TODO
-def plot_3D(x, y, z, filename = ""):
+def make_3d_plot(x, y, z, filename = ""):
     """
     Creates (and saves) a 3D plot of time series of variables x, y and z.
     :param x: time series (array) of variable x
@@ -117,28 +117,48 @@ def plot_3D(x, y, z, filename = ""):
     """
 
     # Attach 3d axis to figure
-    fig = plt.figure()
-    ax = fig.add_subplot(projection = "3d")
-    ax.plot(x, y, z, cmap = "hot", c = np.arange(0, len(x)))
-    ax.set_xlabel = ("x")
-    ax.set_ylabel = ("y")
-    ax.set_zlabel = ("z")
+    #fig = plt.figure()
+    #ax = fig.add_subplot(projection = "3d")
+
+    #for i in range(len(x)):
+    #    ax.plot(x, y, z, color = cmap_colors[i])
+
+    #ax.set_xlabel = ("x")
+    #ax.set_ylabel = ("y")
+    #ax.set_zlabel = ("z")
+
+    times = np.arange(0,len(x))
+
+    plot = mlab.plot3d(x, y, z, times, tube_radius = 0.025, colormap = 'Spectral')
 
     # save plot iff filename is provided
     if filename != "":
         plt.savefig("../results/figures/plot_3D_" + filename)
 
-    plt.show()
+    return plot
 
 if __name__ == "__main__":
     # Create a toy time series using the sine function
-    time_points = np.linspace(0, 4 * np.pi, 1000)
-    time_series_x = np.sin(time_points)
+    #time_points = np.linspace(0, 4 * np.pi, 1000)
+    #time_series_x = np.sin(time_points)
 
-    plot_3D(time_series_x, time_series_x, time_series_x)
+    #plot_3D(time_series_x, time_series_x, time_series_x)
 
     # Make plots (time series, recurrence and ACP)
     #plot_time_series(time_series_x, filename="sin")
     #plot_recurrence(time_series_x, delay = 1.575, eps = np.pi/18, filename = "sin")
     #plot_autocorrelation(time_series_x, filename="sin")
     #plot_partial_autocorrelation(time_series_x)
+
+    n_mer, n_long = 6, 11
+    dphi = np.pi / 1000.0
+    phi = np.arange(0.0, 2 * np.pi + 0.5 * dphi, dphi)
+    mu = phi * n_mer
+    x_ = np.cos(mu) * (1 + np.cos(n_long * mu / n_mer) * 0.5)
+    y_ = np.sin(mu) * (1 + np.cos(n_long * mu / n_mer) * 0.5)
+    z_ = np.sin(n_long * mu / n_mer) * 0.5
+
+    mlab.plot3d(x_, y_, z_, np.sin(mu), tube_radius=0.025, colormap='Spectral')
+    mlab.show()
+
+    
