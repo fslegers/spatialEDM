@@ -1,6 +1,7 @@
 """packages used in this file"""
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.animation as animation
 from pyts.image import RecurrencePlot
 from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
 
@@ -106,13 +107,35 @@ def plot_partial_autocorrelation(time_series, filename = ""):
     plt.show()
 
 #TODO
-def plot_3D(filename = ""):
-    return 0
+def plot_3D(x, y, z, filename = ""):
+    """
+    Creates (and saves) a 3D plot of time series of variables x, y and z.
+    :param x: time series (array) of variable x
+    :param y: time series (array) of variable y
+    :param z: time series (array) of variable z
+    :param filename: if filename if given, the plot will be saved under this name.
+    """
+
+    # Attach 3d axis to figure
+    fig = plt.figure()
+    ax = fig.add_subplot(projection = "3d")
+    ax.plot(x, y, z, cmap = "hot", c = np.arange(0, len(x)))
+    ax.set_xlabel = ("x")
+    ax.set_ylabel = ("y")
+    ax.set_zlabel = ("z")
+
+    # save plot iff filename is provided
+    if filename != "":
+        plt.savefig("../results/figures/plot_3D_" + filename)
+
+    plt.show()
 
 if __name__ == "__main__":
     # Create a toy time series using the sine function
     time_points = np.linspace(0, 4 * np.pi, 1000)
     time_series_x = np.sin(time_points)
+
+    plot_3D(time_series_x, time_series_x, time_series_x)
 
     # Make plots (time series, recurrence and ACP)
     #plot_time_series(time_series_x, filename="sin")

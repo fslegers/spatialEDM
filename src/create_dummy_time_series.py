@@ -78,10 +78,13 @@ def plot_dynamical_system(name = "Lorenz", var = 0):
     if(name == "Lorenz"):
         trajectory = simulate_lorenz(vec0=np.array([1, 2, 3]), t_max=5000, noise=0.005)
         time_series = trajectory[:, var]
+        plot_3D(trajectory[:,0], trajectory[:,1], trajectory[:,2], filename="lorenz")
 
     elif(name == "Thomas"):
         trajectory = simulate_thomas(vec0=np.array([1, 2, 3]), t_max=2500, noise=0.005)
         time_series = trajectory[:, var]
+        plot_3D(trajectory[:, 0], trajectory[:, 1], trajectory[:, 2], filename="thomas")
+
     else:
         time_series = simulate_additive_white_noise(delta_t=2e-3, t_max=4, noise=0.1)
         time_series = np.ndarray.transpose(np.array(time_series))
@@ -89,7 +92,7 @@ def plot_dynamical_system(name = "Lorenz", var = 0):
     plot_time_series(time_series, filename=name)
     plot_autocorrelation(time_series, filename=name)
     plot_recurrence(time_series, delay=1, eps=0.5, filename=name)
-
+    plot_partial_autocorrelation(time_series, filename=name)
 
 if __name__ == "__main__":
     plot_dynamical_system("Lorenz")
