@@ -2,7 +2,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from pyts.image import RecurrencePlot
-from statsmodels.graphics.tsaplots import plot_acf
+from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
 
 def plot_time_series(time_series, filename = ""):
     """
@@ -33,14 +33,14 @@ def plot_recurrence(time_series, delay = 1, eps = 0.05, filename = ""):
     Saves plot if a filename is provided.
     """
     # transform time series into np.array
-    time_series = np.array([time_series])
+    short_time_series = np.array([time_series])
 
     # initiate a recurrence plot
     try:
         recurrence_info = RecurrencePlot(time_delay=delay, threshold=eps)
 
         # transform time series into a recurrence plot
-        my_recurrence_plot = recurrence_info.transform(time_series)
+        my_recurrence_plot = recurrence_info.transform(short_time_series)
 
         # plot figure
         plt.figure(figsize=(5, 5))
@@ -59,15 +59,19 @@ def plot_recurrence(time_series, delay = 1, eps = 0.05, filename = ""):
         print("An exception occurred. Are you sure time_delay is an integer"
               " and threshold a double?")
 
-
-
 def plot_autocorrelation(time_series, filename = ""):
     """
     Plots the autocorrelation function of the time series.
     Saves plot if a filename is given.
     """
+    # Determine which lags to show on the x-axis
+    if (len(time_series) > 50):
+        lags = np.arange(0, len(time_series), step = len(time_series) / 50)
+    else:
+        lags = np.arange(0, len(time_series))
+
     plt.figure(figsize=(5, 5))
-    plot_acf(time_series)
+    plot_acf(time_series, lags = np.array(lags))
     plt.title("Autocorrelation Plot", fontsize = 18)
     plt.ylim(-1.1, 1.1)
 
@@ -76,6 +80,31 @@ def plot_autocorrelation(time_series, filename = ""):
         plt.savefig("../results/figures/plot_acf_" + filename)
 
     plt.show()
+
+def plot_partial_autocorrelation(time_series, filename = ""):
+    """
+        Plots the partial autocorrelation function of the time series.
+        Saves plot if a filename is given.
+        """
+    # Determine which lags to show on the x-axis
+    if (len(time_series) > 50):
+        lags = np.arange(0, len(time_series), step=len(time_series) / 50)
+    else:
+        lags = np.arange(0, len(time_series))
+
+    plt.figure(figsize=(5, 5))
+    plot_pacf(time_series, lags=np.array(lags))
+    plt.title("Partial Autocorrelation Plot", fontsize=18)
+    plt.ylim(-1.1, 1.1)
+
+    # save plot iff filename is provided
+    if filename != "":
+        plt.savefig("../results/figures/plot_pacf_" + filename)
+
+    plt.show()
+
+def plot_3D(filename = ""):
+    return 0
 
 if __name__ == "__main__":
     # Create a toy time series using the sine function

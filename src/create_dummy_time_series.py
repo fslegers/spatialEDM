@@ -33,7 +33,7 @@ def simulate_lorenz(vec0 = np.array([1, 1, 1]), delta_t = 2e-5, t_max = 100, noi
 
     return trajectory
 
-def simulate_thomas():
+def simulate_thomas(vec0 = np.array([1, 1, 1]), delta_t = 2e-5, t_max = 100, noise = 0):
     """
         Simulates a thomas trajectory from initial point vec0, with time steps of size delta_t
         until time t_max.
@@ -43,7 +43,7 @@ def simulate_thomas():
         :param t_max: maximum time
         :param noise: amount of gaussian noise that is added to each coordinate of the trajectory
         :return: trajectory of x, y and z coordinates
-        """
+    """
     # Check if vec0 is correct
     if isinstance(vec0, np.ndarray) and len(vec0) == 3:
         pass
@@ -52,7 +52,7 @@ def simulate_thomas():
         vec0 = np.array([1, 1, 1])
 
     # initialize dynamical system
-    system = data.thomas_attractor()
+    system = data.thomas_attractor(h = delta_t)
 
     # integrate system from starting point
     trajectory = system.trajectory(vec0, t_max)
@@ -63,12 +63,31 @@ def simulate_thomas():
 
     return trajectory
 
+def simulate_additive_white_noise(delta_t = 2e-5, t_max = 100, noise = 0.05):
+    level = 0
+    timer = 0
+    trajectory = []
+    while(timer < t_max):
+        trajectory.append(level)
+        level += np.random.normal(0, noise)
+        timer += delta_t
+    return trajectory
+
+
 if __name__ == "__main__":
+    # simulate a additive white Gausian noise trajectory
+    white_noise = simulate_additive_white_noise(t_max = 40, noise = 0.1)
+
+    # show plots for this time series
+    plot_time_series(white_noise, filename="white_noise")
+    plot_autocorrelation(white_noise, filename="white_noise")
+    plot_recurrence(white_noise, delay=1, eps=0.5, filename="white_noise")
+
     # simulate a trajectory of the Lorenz system with noise
-    lorenz_trajectory = simulate_lorenz(vec0 = np.array([1,2,3]), t_max = 25000, noise = 0.005)
+    lorenz_trajectory = simulate_lorenz(vec0 = np.array([1,2,3]), t_max = 5000, noise = 0.005)
 
     # sample the time series for the x coordinate
-    lorenz_x = lorenz_trajectory[:, 0]
+    lorenz_x = lorenz_trajectory[3000:5500, 0]
 
     # show plots for this time series
     plot_time_series(lorenz_x, filename="lorenz")
@@ -76,7 +95,7 @@ if __name__ == "__main__":
     plot_recurrence(lorenz_x, delay = 2, eps = 0.5, filename="lorenz")
 
     # simulate a trajectory of the Thomas attractor
-    thomas_trajectory = simulate_thomas(vec0=np.array([1, 2, 3]), t_max=25000, noise=0.005)
+    thomas_trajectory = simulate_thomas(vec0 = np.array([1,2,3]), t_max=2500, noise=0.005)
 
     # sample the time series for the x coordinate
     thomas_x = thomas_trajectory[:, 0]
@@ -84,4 +103,4 @@ if __name__ == "__main__":
     # show plots for this time series
     plot_time_series(thomas_x, filename="thomas")
     plot_autocorrelation(thomas_x, filename="thomas")
-    plot_recurrence(thomas_x, delay=2, eps=0.5, filename="thomas")
+    plot_recurrence(thomas_x[1:100], delay=3, eps=0.3, filename="thomas")
