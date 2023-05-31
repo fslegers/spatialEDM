@@ -1,6 +1,7 @@
 """packages used in this file"""
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy import stats
 from pyts.image import RecurrencePlot
 from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
 from mayavi import mlab
@@ -132,6 +133,40 @@ def plot_partial_autocorrelation(time_series, filename = ""):
 
     plt.show()
 
+def plot_correlation(x, y, window_size = 0, filename = ""):
+    """
+    Plots Pearsons correlation coefficient within a moving window over time.
+    :param x: time series
+    :param y: time series
+    :param window_size: how many observations are used per correlation coefficient
+    """
+    t_max = np.shape(x)[0]
+
+    # Choose size of sliding window for which correlations are calculated
+    if window_size == 0:
+        window_size = int(np.ceil(t_max/10))
+
+    counter = 0
+    time_points = []
+    pearson_correlations = []
+    while counter < (t_max - window_size):
+        x_subset = x[counter:(counter+window_size),]
+        y_subset = y[counter:(counter+window_size),]
+        pearson_correlations.append(stats.pearsonr(x_subset, y_subset)[0])
+        time_points.append(counter + window_size)
+        counter += 1
+
+    plt.plot(time_points, pearson_correlations)
+    plt.title("Correlation, time-plot")
+    plt.suptitle(filename, fontsize = 18)
+    plt.ylim(-1.01, 1.01)
+
+    # save plot iff filename is provided
+    if filename != "":
+        plt.savefig("../results/figures/plot_correlation_" + filename)
+
+    plt.show()
+
 def make_3d_plot(x, y, z, filename = "", tube_radius = 0.1, colors = "PuRd"):
     """
     Creates (and saves) a 3D plot of time series of variables x, y and z.
@@ -164,4 +199,13 @@ def example_mayavi():
     mlab.show()
 
 if __name__ == "__main__":
-    example_mayavi()
+    #example_mayavi()
+
+    x = np.arange(0, 10, 0.1)
+    y = np.array(np.cos(x))
+    z = np.arange(-1, 9, 0.1)
+    q = np.array(np.sin(x))
+    r = np.array(np.sin(z))
+    time_series = np.vstack((x,y))
+    plot_time_series(time_series.T)
+    plot_correlation(x,z, window_size=20)

@@ -108,15 +108,14 @@ def plot_dynamical_system(name = "Lorenz", which_var = 0,
     #plot_partial_autocorrelation(time_series, filename=name)
 
 if __name__ == "__main__":
-    #plot_dynamical_system("Lorenz")
-    #plot_dynamical_system("Thomas", t_max = 20000, tube_radius=0.025, noise = 0, colors = 'GnBu')
-    #plot_dynamical_system()
-
-    #lorenz_trajectory = simulate_lorenz(t_max = 300000)
-    trajectory = simulate_thomas(vec0=np.array([1,2,3]),t_max = 5000)
-    make_3d_plot(trajectory[:, 0], trajectory[:, 1], trajectory[:, 2])
+    #lorenz_trajectory = simulate_lorenz(t_max = 1000)
+    thomas_trajectory = simulate_thomas(vec0=np.array([1,2,3]),t_max = 1000)
     #white_noise_trajectory = simulate_additive_white_noise(t_max = 200)
 
-    #plot_time_series(lorenz_trajectory[280000:,], filename = "Lorenz")
-    plot_time_series(trajectory, filename="Thomas")
-    #plot_time_series(white_noise_trajectory, filename = "White noise")
+    #plot_correlation(lorenz_trajectory[:,0],lorenz_trajectory[:,1], window_size=10,filename="Lorenz xy")
+    #plot_correlation(lorenz_trajectory[:,1], lorenz_trajectory[:,2], window_size=10, filename="Lorenz yz")
+    #plot_correlation(lorenz_trajectory[:,0], lorenz_trajectory[:,2], window_size=10, filename="Lorenz xz")
+
+    plot_correlation(thomas_trajectory[:, 0], thomas_trajectory[:, 1], window_size=10, filename="Thomas xy")
+    plot_correlation(thomas_trajectory[:, 1], thomas_trajectory[:, 2], window_size=10, filename="Thomas yz")
+    plot_correlation(thomas_trajectory[:, 0], thomas_trajectory[:, 2], window_size=10, filename="Thomas xz")
