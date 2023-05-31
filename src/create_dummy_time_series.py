@@ -73,17 +73,30 @@ def simulate_additive_white_noise(delta_t = 2e-5, t_max = 100, noise = 0.05):
         timer += delta_t
     return trajectory
 
-def plot_dynamical_system(name = "Lorenz", var = 0):
-    #TODO Add variables to above function call
+def plot_dynamical_system(name = "Lorenz", which_var = 0,
+                          delta_t = 2e-5, t_max = 1000, noise = 0.05,
+                          tube_radius = 0.1, colors = "PuRd"):
+    """
+    Function that executes all plotting consecutively.
+    :param name: determines which dynamical system is simulated.
+    :param which_var: determines which variable of the system is plotted.
+    :param delta_t: time steps of the system integration.
+    :param t_max: how long the simulation runs.
+    :param noise: determines how much noise is added to the trajectory.
+    :param tube_radius: tube thickness in the 3D plot.
+    :param colors: colors in the 3D plot.
+    """
     if(name == "Lorenz"):
-        trajectory = simulate_lorenz(vec0=np.array([1, 2, 3]), t_max=5000, noise=0.005)
-        time_series = trajectory[:, var]
-        plot_3D(trajectory[:,0], trajectory[:,1], trajectory[:,2], filename="lorenz")
+        trajectory = simulate_lorenz(vec0=np.array([1, 2, 3]), delta_t=delta_t, t_max=t_max, noise=noise)
+        time_series = trajectory[:, which_var]
+        make_3d_plot(trajectory[:,0], trajectory[:,1], trajectory[:,2],
+                     filename="lorenz", tube_radius=tube_radius, colors=colors)
 
     elif(name == "Thomas"):
-        trajectory = simulate_thomas(vec0=np.array([1, 2, 3]), t_max=2500, noise=0.005)
-        time_series = trajectory[:, var]
-        plot_3D(trajectory[:, 0], trajectory[:, 1], trajectory[:, 2], filename="thomas")
+        trajectory = simulate_thomas(vec0=np.array([1, 2, 3]), delta_t=delta_t, t_max=t_max, noise=noise)
+        time_series = trajectory[:, which_var]
+        make_3d_plot(trajectory[:, 0], trajectory[:, 1], trajectory[:, 2],
+                     filename="thomas", tube_radius=tube_radius, colors=colors)
 
     else:
         time_series = simulate_additive_white_noise(delta_t=2e-3, t_max=4, noise=0.1)
@@ -95,6 +108,6 @@ def plot_dynamical_system(name = "Lorenz", var = 0):
     plot_partial_autocorrelation(time_series, filename=name)
 
 if __name__ == "__main__":
-    plot_dynamical_system("Lorenz")
-    plot_dynamical_system("Thomas")
-    plot_dynamical_system()
+    #plot_dynamical_system("Lorenz")
+    plot_dynamical_system("Thomas", t_max = 20000, tube_radius=0.025, noise = 0, colors = 'GnBu')
+    #plot_dynamical_system()
