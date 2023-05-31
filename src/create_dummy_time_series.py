@@ -71,7 +71,7 @@ def simulate_additive_white_noise(delta_t = 2e-5, t_max = 100, noise = 0.05):
         trajectory.append(level)
         level += np.random.normal(0, noise)
         timer += delta_t
-    return trajectory
+    return np.array(trajectory)
 
 def plot_dynamical_system(name = "Lorenz", which_var = 0,
                           delta_t = 2e-5, t_max = 1000, noise = 0.05,
@@ -102,12 +102,25 @@ def plot_dynamical_system(name = "Lorenz", which_var = 0,
         time_series = simulate_additive_white_noise(delta_t=2e-3, t_max=4, noise=0.1)
         time_series = np.ndarray.transpose(np.array(time_series))
 
-    plot_time_series(time_series, filename=name)
-    plot_autocorrelation(time_series, filename=name)
-    plot_recurrence(time_series, delay=1, eps=0.5, filename=name)
-    plot_partial_autocorrelation(time_series, filename=name)
+    #plot_time_series(time_series, filename=name)
+    #plot_autocorrelation(time_series, filename=name)
+    #plot_recurrence(time_series, delay=1, eps=0.5, filename=name)
+    #plot_partial_autocorrelation(time_series, filename=name)
 
 if __name__ == "__main__":
     #plot_dynamical_system("Lorenz")
-    plot_dynamical_system("Thomas", t_max = 20000, tube_radius=0.025, noise = 0, colors = 'GnBu')
+    #plot_dynamical_system("Thomas", t_max = 20000, tube_radius=0.025, noise = 0, colors = 'GnBu')
     #plot_dynamical_system()
+
+    #lorenz_trajectory = simulate_lorenz(t_max = 300000)
+    thomas_trajectory = simulate_thomas(vec0=[1,1,1],t_max = 1000)
+    make_3d_plot(thomas_trajectory[:,0],
+                 thomas_trajectory[:,1],
+                 thomas_trajectory[:,2])
+    #white_noise_trajectory = simulate_additive_white_noise(t_max = 200)
+
+    #plot_time_series(lorenz_trajectory[280000:,], filename = "Lorenz")
+    plot_time_series(thomas_trajectory[:,], filename="Thomas")
+    #plot_time_series(white_noise_trajectory, filename = "White noise")
+
+    print("hallo")

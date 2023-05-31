@@ -5,13 +5,39 @@ from pyts.image import RecurrencePlot
 from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
 from mayavi import mlab
 
-def plot_time_series(time_series, filename = ""):
+def plot_time_series(time_series, obs_times = None, filename = ""):
     """
-    Plots the time series. Saves plot if a filename is given.
+    Plots the time series. Time series can be a single time series or an array of time series.
+    Saves plot if a filename is given.
+    :param time_series: a single or an array of time series.
+    :param filename: if given, the time series plot is saved using this name.
     """
-    plt.figure(figsize=(5, 5))
-    plt.plot(time_series)
-    plt.title("Time Series Plot", fontsize = 18)
+
+    #check if we are dealing with one or multiple time series
+    if len(np.shape(time_series)) == 1 or np.shape(time_series)[1] == 1:
+        # if no observation times are given, create array
+        if obs_times == None:
+            obs_times = np.arange(0, len(time_series))
+
+        plt.plot( obs_times, time_series)
+        plt.xlabel('t')
+        plt.ylabel('x')
+        if(filename != ""):
+            plt.suptitle(filename, fontsize = 18)
+        plt.title("Time series Plot")
+
+    else:
+        # if no observation times are given, create array
+        if obs_times == None:
+            obs_times = np.arange(0, np.shape(time_series)[0])
+
+        fig, axs = plt.subplots(np.shape(time_series)[1])
+        fig.suptitle("Time Series Plots", fontsize = 18)
+        for i in range(np.shape(time_series)[1]):
+            axs[i].plot(obs_times, time_series[:,i])
+            axs[i].set(ylabel = "x" + str(i), xlabel = "t")
+
+        plt.suptitle((str(filename)+"\n Time series plot"), fontsize = 15)
 
     # save plot iff filename is provided
     if filename != "":
@@ -138,10 +164,4 @@ def example_mayavi():
     mlab.show()
 
 if __name__ == "__main__":
-
     example_mayavi()
-
-
-
-
-    
