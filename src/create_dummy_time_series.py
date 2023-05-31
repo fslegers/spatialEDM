@@ -113,14 +113,10 @@ if __name__ == "__main__":
     #plot_dynamical_system()
 
     #lorenz_trajectory = simulate_lorenz(t_max = 300000)
-    thomas_trajectory = simulate_thomas(vec0=[1,1,1],t_max = 1000)
-    make_3d_plot(thomas_trajectory[:,0],
-                 thomas_trajectory[:,1],
-                 thomas_trajectory[:,2])
+    trajectory = simulate_thomas(vec0=np.array([1,2,3]),t_max = 5000)
+    make_3d_plot(trajectory[:, 0], trajectory[:, 1], trajectory[:, 2])
     #white_noise_trajectory = simulate_additive_white_noise(t_max = 200)
 
     #plot_time_series(lorenz_trajectory[280000:,], filename = "Lorenz")
-    plot_time_series(thomas_trajectory[:,], filename="Thomas")
+    plot_time_series(trajectory, filename="Thomas")
     #plot_time_series(white_noise_trajectory, filename = "White noise")
-
-    print("hallo")
