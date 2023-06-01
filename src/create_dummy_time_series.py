@@ -3,7 +3,7 @@ import numpy as np
 from mpl_toolkits.mplot3d.art3d import Line3DCollection
 from time_series_plots import *
 
-def simulate_lorenz(vec0 = np.array([1, 1, 1]), delta_t = 2e-5, t_max = 100, noise = 0):
+def simulate_lorenz(vec0 = np.array([0, 1, 1.05]), delta_t = 2e-5, t_max = 100, noise = 0):
     """
     Simulates a lorenz trajectory from initial point vec0, with time steps of size delta_t
     until time t_max.

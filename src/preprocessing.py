@@ -54,6 +54,11 @@ def standardize_time_series(time_series):
 
     return(time_series_scaled)
 
+#TODO
+#Outlier detection
+#Missing intervals
+#Irregular intervals
+
 
 if __name__ == "__main__":
     x = np.arange(0,10,0.1)
