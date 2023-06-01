@@ -21,7 +21,7 @@ def simplex_projection(time_series, lag = -1, max_E = 10):
     training_set = "1 " + str(floor(0.6 * length))
     test_set = str(floor(0.6 * length) + 1) + " " + str(length)
 
-    # Plot and return prediction performance rho for each embedding via Simplex
+    # Plot and return prediction skill rho for each embedding via Simplex
     rho_per_E = EmbedDimension(dataFrame = df, maxE = max_E, tau = -np.abs(lag), lib = training_set, pred = test_set, columns = "x")
 
     # Find the optimal E
@@ -30,6 +30,13 @@ def simplex_projection(time_series, lag = -1, max_E = 10):
           " ( rho = ", str(optimal_param["rho"]), ").")
 
     return(optimal_param["E"])
+
+#TODO
+#S-Map
+#CCM
+#Multi-view
+#PredictInterval
+#PredictNonlinear
 
 if __name__ == "__main__":
     lorenz_trajectory = simulate_lorenz(t_max=1000)
