@@ -20,7 +20,7 @@ def plot_time_series(time_series, obs_times = None, filename = ""):
         if obs_times == None:
             obs_times = np.arange(0, len(time_series))
 
-        plt.plot( obs_times, time_series)
+        plt.plot(obs_times, time_series)
         plt.xlabel('t')
         plt.ylabel('x')
         if(filename != ""):
@@ -167,6 +167,20 @@ def plot_correlation(x, y, window_size = 0, filename = ""):
 
     plt.show()
 
+def make_lag_scatterplot(time_series, lag, filename = ""):
+    x = time_series[lag:]
+    y = time_series[:-lag]
+
+    plt.plot(y, x)
+    plt.xlabel("x(t - tau)")
+    plt.ylabel("x(t)")
+    plt.title("Lag plot, tau = " + str(lag), fontsize = 18)
+
+    if(filename != ""):
+        plt.savefig('scatterplot_'+filename)
+
+    plt.show()
+
 def make_3d_plot(x, y, z, filename = "", tube_radius = 0.1, colors = "PuRd"):
     """
     Creates (and saves) a 3D plot of time series of variables x, y and z.
@@ -203,9 +217,4 @@ if __name__ == "__main__":
 
     x = np.arange(0, 10, 0.1)
     y = np.array(np.cos(x))
-    z = np.arange(-1, 9, 0.1)
-    q = np.array(np.sin(x))
-    r = np.array(np.sin(z))
-    time_series = np.vstack((x,y))
-    plot_time_series(time_series.T)
-    plot_correlation(x,z, window_size=20)
+    make_lag_scatterplot(y, 3)
