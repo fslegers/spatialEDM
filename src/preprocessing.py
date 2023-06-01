@@ -37,16 +37,18 @@ def summarize_statistics(time_series, window_size = 10, filename = ""):
 
     plt.show()
 
-def normalize_time_series(time_series):
+def standardize_time_series(time_series):
     """
     Standardizes each series in time_series.
-    :param time_series: ndarray of a single or multiple time series.
+    :param time_series: ndarray (column vector) of a single or multiple time series.
     :return standardized time series with mean 0 and unit variance
     """
 
+    # perform standardization
     scaler = sklearn.preprocessing.StandardScaler().fit(time_series)
     time_series_scaled = scaler.transform(time_series)
 
+    # print mean and variances of each time series
     print(time_series_scaled.mean(axis = 0))
     print(time_series_scaled.std(axis = 0))
 
@@ -60,6 +62,5 @@ if __name__ == "__main__":
     summarize_statistics(x, window_size=20)
     summarize_statistics(y, window_size=20)
 
-    x_normalized = normalize_time_series(np.array([x]).T)
-
-    xy_normalized = normalize_time_series(np.array([x,y]))
+    x_standard = standardize_time_series(np.array([x]).T)
+    xy_standard = standardize_time_series(np.array([x,y]).T)
