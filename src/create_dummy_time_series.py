@@ -102,20 +102,19 @@ def plot_dynamical_system(name = "Lorenz", which_var = 0,
         time_series = simulate_additive_white_noise(delta_t=2e-3, t_max=4, noise=0.1)
         time_series = np.ndarray.transpose(np.array(time_series))
 
-    #plot_time_series(time_series, filename=name)
-    #plot_autocorrelation(time_series, filename=name)
+    plot_time_series(time_series, filename=name)
+    plot_autocorrelation(time_series, filename=name)
     #plot_recurrence(time_series, delay=1, eps=0.5, filename=name)
-    #plot_partial_autocorrelation(time_series, filename=name)
+    plot_partial_autocorrelation(time_series, filename=name)
 
 if __name__ == "__main__":
     #lorenz_trajectory = simulate_lorenz(t_max = 1000)
-    thomas_trajectory = simulate_thomas(vec0=np.array([1,2,3]),t_max = 1000)
+    #thomas_trajectory = simulate_thomas(vec0=np.array([1,2,3]),delta_t = 1, t_max = 50)
     #white_noise_trajectory = simulate_additive_white_noise(t_max = 200)
 
     #plot_correlation(lorenz_trajectory[:,0],lorenz_trajectory[:,1], window_size=10,filename="Lorenz xy")
     #plot_correlation(lorenz_trajectory[:,1], lorenz_trajectory[:,2], window_size=10, filename="Lorenz yz")
     #plot_correlation(lorenz_trajectory[:,0], lorenz_trajectory[:,2], window_size=10, filename="Lorenz xz")
 
-    plot_correlation(thomas_trajectory[:, 0], thomas_trajectory[:, 1], window_size=10, filename="Thomas xy")
-    plot_correlation(thomas_trajectory[:, 1], thomas_trajectory[:, 2], window_size=10, filename="Thomas yz")
-    plot_correlation(thomas_trajectory[:, 0], thomas_trajectory[:, 2], window_size=10, filename="Thomas xz")
+    plot_dynamical_system(name = "Thomas", which_var = 0, delta_t = 0.02, t_max=1)
+

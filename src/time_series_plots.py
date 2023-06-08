@@ -87,6 +87,9 @@ def plot_recurrence(time_series, delay = 1, eps = 0.05, filename = ""):
         print("An exception occurred. Are you sure time_delay is an integer"
               " and threshold a double?")
 
+#TODO
+#Joint Recurrence Plot
+
 def plot_autocorrelation(time_series, filename = ""):
     """
     Plots the autocorrelation function of the time series.
