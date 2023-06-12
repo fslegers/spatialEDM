@@ -2,7 +2,7 @@ from pyEDM import *
 import pandas as pd
 from create_dummy_time_series import *
 
-def simplex_projection(time_series, time_interval = 1, lag = -1, max_E = 10):
+def simplex_projection(time_series, lag = -1, max_E = 10):
     """
     Finds the optimal value for the embedding dimension E by one-step-ahead predictions
     using E+1 Nearest Neighbors.
@@ -10,7 +10,7 @@ def simplex_projection(time_series, time_interval = 1, lag = -1, max_E = 10):
     """
     # If no observation times are given, add them to time_series
     if len(np.shape(time_series)) == 1:
-        obs_times = np.arange(0, np.shape(time_series)[0] * time_interval , time_interval)
+        obs_times = np.arange(1, np.shape(time_series)[0] + 1, 1)
         time_series = np.column_stack((obs_times, time_series))
 
     # Turn time_series into pandas dataframe
@@ -22,7 +22,7 @@ def simplex_projection(time_series, time_interval = 1, lag = -1, max_E = 10):
     test_set = str(floor(0.6 * length) + 1) + " " + str(length)
 
     # Plot and return prediction skill rho for each embedding via Simplex
-    rho_per_E = EmbedDimension(dataFrame = df, Tp = time_interval, maxE = max_E, tau = -np.abs(lag),
+    rho_per_E = EmbedDimension(dataFrame = df, maxE = max_E, tau = -np.abs(lag),
                                lib = training_set, pred = test_set, columns = "x")
 
     # Find the optimal E
@@ -66,15 +66,16 @@ def S_map(time_series, lag = -1, E = 10):
 #PredictInterval
 #PredictNonlinear
 #SpatialReplicates
+#PlotEmbeddingSpace
 
 if __name__ == "__main__":
-    lorenz_trajectory = simulate_lorenz()
+    lorenz_trajectory = simulate_lorenz(t_max = 5000)
     lorenz_x = lorenz_trajectory[:,0]
 
     #thomas_trajectory = simulate_thomas()
     #thomas_x = thomas_trajectory[:,0]
 
     #simplex_projection(lorenz_x)
-    plot_autocorrelation(lorenz_x)
-    simplex_projection(lorenz_x, time_interval = 2e-5, lag = -37)
+    #plot_autocorrelation(lorenz_x)
+    simplex_projection(lorenz_x, lag = 395, max_E = 8)
     #S_map(lorenz_x, lag = -37)
