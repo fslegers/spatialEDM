@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 from scipy import stats
 from pyts.image import RecurrencePlot
 from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
+from statsmodels.tsa.stattools import acf
 from mayavi import mlab
 
 def plot_time_series(time_series, obs_times = None, filename = ""):
@@ -94,6 +95,7 @@ def plot_autocorrelation(time_series, filename = ""):
     """
     Plots the autocorrelation function of the time series.
     Saves plot if a filename is given.
+    Prints for which lag the autocorrelation first crosses the x-axis.
     """
     # Determine which lags to show on the x-axis
     n_col = np.shape(time_series)[0]
@@ -107,6 +109,16 @@ def plot_autocorrelation(time_series, filename = ""):
     plot_acf(time_series, lags = np.array(lags))
     plt.title("Autocorrelation Plot", fontsize = 18)
     plt.ylim(-1.1, 1.1)
+
+    # Find first switch from positive to negative
+    auto_correlations = acf(time_series, nlags=len(time_series), bartlett_confint=True)
+
+    i = 1
+    while(i < len(time_series)):
+        if auto_correlations[i] <= 0:
+            print("first negative value at lag ", i)
+            break
+        i += 1
 
     # save plot iff filename is provided
     if filename != "":
