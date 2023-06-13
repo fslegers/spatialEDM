@@ -60,22 +60,21 @@ def S_map(time_series, lag = -1, E = 10):
     return(rho_per_theta)
 
 #TODO
-#S-Map
 #CCM
 #Multi-view
 #PredictInterval
-#PredictNonlinear
 #SpatialReplicates
 #PlotEmbeddingSpace
 
 if __name__ == "__main__":
-    lorenz_trajectory = simulate_lorenz(t_max = 5000)
-    lorenz_x = lorenz_trajectory[:,0]
+    lorenz_trajectory = simulate_lorenz(t_max = 10000)
+    lorenz_y = lorenz_trajectory[:,1]
 
     #thomas_trajectory = simulate_thomas()
     #thomas_x = thomas_trajectory[:,0]
 
     #simplex_projection(lorenz_x)
-    #plot_autocorrelation(lorenz_x)
-    simplex_projection(lorenz_x, lag = 395, max_E = 8)
-    #S_map(lorenz_x, lag = -37)
+    #plot_autocorrelation(lorenz_y)
+    #simplex_projection(lorenz_y, lag = 1, max_E = 10)
+
+    plot_embedding(lorenz_y, E = 3, lag = 100)

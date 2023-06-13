@@ -47,6 +47,38 @@ def plot_time_series(time_series, obs_times = None, filename = ""):
 
     plt.show()
 
+def plot_embedding(time_series, E = 3, lag = 1, filename = ""):
+    if(E <= 1 or E > 3):
+        print("Cannot plot embedding of dimension ", str(E))
+        return 0
+
+    if(E == 2):
+        x = time_series
+        y = np.roll(x, -lag)
+
+        plt.plot(x[:-lag], y[:-lag])
+        plt.show()
+
+    else:
+        x = time_series
+        y = np.roll(time_series, -lag)
+        z = np.roll(time_series, -2*lag)
+
+        mlab.figure(bgcolor = (1,1,1), fgcolor = (0,0,0))
+        mlab.plot3d(x[:-2*lag], y[:-2*lag], z[:-2*lag], np.arange(0, len(x[:-2*lag]),1),
+                    colormap = "PuRd", tube_radius = 0.1)
+        mlab.axes(xlabel = "x(t)", ylabel = "x(t-"+str(lag)+")", zlabel = "x(t-"+str(2*lag)+")")
+
+        mlab.show()
+
+        mlab.savefig(filename = "plot_embedding_" + filename)
+
+        mlab.close()
+
+
+
+
+
 def plot_recurrence(time_series, delay = 1, eps = 0.05, filename = ""):
     """
     :type eps: double
@@ -230,6 +262,8 @@ def example_mayavi():
 if __name__ == "__main__":
     #example_mayavi()
 
-    x = np.arange(0, 10, 0.1)
-    y = np.array(np.cos(x))
-    make_lag_scatterplot(y, 3)
+    x = np.arange(0, 20, 0.1)
+    x = np.sin(x)
+
+
+    plot_embedding(x, 3, 3)
