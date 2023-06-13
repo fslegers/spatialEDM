@@ -32,6 +32,9 @@ def simplex_projection(time_series, lag = -1, max_E = 10):
 
     return(optimal_param["E"])
 
+def simplex_projection_replicates(time_series, lag = -1, max_E = 10):
+    return 0
+
 def S_map(time_series, lag = -1, E = 10):
     """
     Evaluates Smap prediction skill for different values of localization parameter theta)
@@ -67,7 +70,7 @@ def S_map(time_series, lag = -1, E = 10):
 #PlotEmbeddingSpace
 
 if __name__ == "__main__":
-    lorenz_trajectory = simulate_lorenz(t_max = 10000)
+    lorenz_trajectory = simulate_lorenz(t_max = 30000)
     lorenz_y = lorenz_trajectory[:,1]
 
     #thomas_trajectory = simulate_thomas()
@@ -75,6 +78,7 @@ if __name__ == "__main__":
 
     #simplex_projection(lorenz_x)
     #plot_autocorrelation(lorenz_y)
-    #simplex_projection(lorenz_y, lag = 1, max_E = 10)
+    #simplex_projection(lorenz_y, lag = 181, max_E = 10)
+    S_map(lorenz_y, lag = 181, E = 3)
 
-    plot_embedding(lorenz_y, E = 3, lag = 100)
+    plot_embedding(lorenz_y, E = 3, lag = 181, filename = "")

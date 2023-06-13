@@ -57,6 +57,9 @@ def plot_embedding(time_series, E = 3, lag = 1, filename = ""):
         y = np.roll(x, -lag)
 
         plt.plot(x[:-lag], y[:-lag])
+
+        plt.xlabel("x(t)")
+        plt.ylabel("x(t - " + str(lag) + ")")
         plt.show()
 
     else:
