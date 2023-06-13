@@ -8,6 +8,9 @@ def simplex_projection(time_series, lag = -1, max_E = 10):
     using E+1 Nearest Neighbors.
     :return: E, optimal dimension
     """
+    #TODO
+    #Add check if time_series is standardized
+
     # If no observation times are given, add them to time_series
     if len(np.shape(time_series)) == 1:
         obs_times = np.arange(1, np.shape(time_series)[0] + 1, 1)
@@ -43,6 +46,9 @@ def S_map(time_series, lag = -1, E = 10):
     :param E:
     :return:
     """
+    #TODO
+    #Add check if time_series is standardized
+    
     # If no observation times are given, add them to time_series
     if len(np.shape(time_series)) == 1:
         obs_times = np.arange(1, np.shape(time_series)[0] + 1, 1)
