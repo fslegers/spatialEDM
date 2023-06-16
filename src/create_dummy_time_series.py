@@ -97,8 +97,6 @@ def simulate_host_parasitoid(vec0 = np.array([1,1]), t_max = 100, r = 7, gamma =
 
     #Implemented without noise term
 
-
-
 def plot_dynamical_system(name = "Lorenz", which_var = 0,
                           delta_t = 2e-5, t_max = 1000, noise = 0.05,
                           tube_radius = 0.1, colors = "PuRd"):
@@ -142,4 +140,4 @@ if __name__ == "__main__":
     #plot_correlation(lorenz_trajectory[:,1], lorenz_trajectory[:,2], window_size=10, filename="Lorenz yz")
     #plot_correlation(lorenz_trajectory[:,0], lorenz_trajectory[:,2], window_size=10, filename="Lorenz xz")
 
-    #plot_dynamical_system(name = "Thomas", which_var = 0, delta_t = 0.02, t_max=1)
+    plot_dynamical_system(name = "Thomas", which_var = 0, delta_t = 0.02, t_max=1)

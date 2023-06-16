@@ -1,6 +1,8 @@
+import numpy as np
 from pyEDM import *
 import pandas as pd
 from create_dummy_time_series import *
+from sklearn import preprocessing
 
 def simplex_projection(time_series, lag = -1, max_E = 10):
     """
@@ -8,8 +10,10 @@ def simplex_projection(time_series, lag = -1, max_E = 10):
     using E+1 Nearest Neighbors.
     :return: E, optimal dimension
     """
-    #TODO
-    #Add check if time_series is standardized
+    #Check if time_series is standardized
+    if np.abs(mean(time_series)) > 2e-5 or np.abs(std(time_series)) - 1 > 2e-5:
+        print("standardizing time series...")
+        time_series = preprocessing.scale(time_series)
 
     # If no observation times are given, add them to time_series
     if len(np.shape(time_series)) == 1:
@@ -36,12 +40,37 @@ def simplex_projection(time_series, lag = -1, max_E = 10):
     return(optimal_param["E"])
 
 def my_simplex_projection(time_series, lag = 1, max_E = 10):
-    # For each dimension
-    for dim in range(max_E):
-        # training set contains all observations except first lag*dim and last one
-        training_set = time_series[lag*dim:-1]
 
-        # create embedding
+    # For each dimension E
+    for dim in range(1, max_E + 1):
+        # add original time series
+        Hankel_matrix = []
+
+        # add time delay embeddings
+        for i in range(dim + 1):
+            if i == 0:
+                delayed_time_series = time_series[(dim - i) * lag:]
+            else:
+                delayed_time_series = time_series[(dim-i)*lag:-i*lag]
+            Hankel_matrix.append(delayed_time_series)
+
+        # create distance matrix
+        Hankel_matrix = np.stack(Hankel_matrix, axis = 0)
+        dist_matrix = np.zeros((len(time_series) - dim*lag, len(time_series) - dim*lag))
+        for i in range(len(time_series) - dim*lag):
+            for j in range(len(time_series) - dim*lag - i):
+                dist = np.linalg.norm(Hankel_matrix[:,i], Hankel_matrix[:,j], axis = 1)
+                dist_matrix[i,j] = dist
+                dist_matrix[j,i] = dist
+
+        # for all target points, get dim+1 nearest neighbors and make one-step-ahead prediction (weighted average)
+        #for target in range(len(time_series) - dim*lag):
+            # find dim + 1 nearest neighbors
+
+
+
+        # create embedding matrix
+        embedding_matrix = time_series
 
     return 0
 
@@ -97,6 +126,9 @@ if __name__ == "__main__":
     #simplex_projection(lorenz_x)
     #plot_autocorrelation(lorenz_y)
     #simplex_projection(lorenz_y, lag = 181, max_E = 10)
-    S_map(lorenz_y, lag = 181, E = 3)
+    #S_map(lorenz_y, lag = 181, E = 3)
 
-    plot_embedding(lorenz_y, E = 3, lag = 181, filename = "")
+    #plot_embedding(lorenz_y, E = 3, lag = 181, filename = "")
+
+    time_series = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+    my_simplex_projection(time_series, lag = 1, max_E=4)
