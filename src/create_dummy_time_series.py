@@ -73,6 +73,32 @@ def simulate_additive_white_noise(delta_t = 2e-5, t_max = 100, noise = 0.05):
         timer += delta_t
     return np.array(trajectory)
 
+def simulate_host_parasitoid(vec0 = np.array([1,1]), t_max = 100, r = 7, gamma = 0.5, alpha = 2):
+    trajectory_N = [vec0[0]] # Keep track of trajectories of hosts
+    trajectory_P = [vec0[1]] # and parasitoids
+
+    N_t = vec0[0] #Hosts
+    P_t = vec0[1] #Parasitoids
+    counter = 0
+    while counter < t_max:
+        # Update rules
+        delta_N = r * N_t * np.exp(-N_t-gamma*P_t)
+        delta_P = alpha * N_t * np.exp(-N_t) * (1 - np.exp(-gamma*P_t))
+        N_t += delta_N
+        P_t += delta_P
+
+        # Add to trajectories
+        trajectory_N.append(N_t)
+        trajectory_P.append(P_t)
+
+        counter += 1
+
+    return [trajectory_N, trajectory_P]
+
+    #Implemented without noise term
+
+
+
 def plot_dynamical_system(name = "Lorenz", which_var = 0,
                           delta_t = 2e-5, t_max = 1000, noise = 0.05,
                           tube_radius = 0.1, colors = "PuRd"):
@@ -116,5 +142,4 @@ if __name__ == "__main__":
     #plot_correlation(lorenz_trajectory[:,1], lorenz_trajectory[:,2], window_size=10, filename="Lorenz yz")
     #plot_correlation(lorenz_trajectory[:,0], lorenz_trajectory[:,2], window_size=10, filename="Lorenz xz")
 
-    plot_dynamical_system(name = "Thomas", which_var = 0, delta_t = 0.02, t_max=1)
-
+    #plot_dynamical_system(name = "Thomas", which_var = 0, delta_t = 0.02, t_max=1)

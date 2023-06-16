@@ -35,6 +35,18 @@ def simplex_projection(time_series, lag = -1, max_E = 10):
 
     return(optimal_param["E"])
 
+def my_simplex_projection(time_series, lag = 1, max_E = 10):
+    # For each dimension
+    for dim in range(max_E):
+        # training set contains all observations except first lag*dim and last one
+        training_set = time_series[lag*dim:-1]
+
+        # create embedding
+
+    return 0
+
+
+
 def simplex_projection_replicates(time_series, lag = -1, max_E = 10):
     return 0
 
