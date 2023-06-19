@@ -58,19 +58,53 @@ def my_simplex_projection(time_series, lag = 1, max_E = 10):
         Hankel_matrix = np.stack(Hankel_matrix, axis = 0)
         dist_matrix = np.zeros((len(time_series) - dim*lag, len(time_series) - dim*lag))
         for i in range(len(time_series) - dim*lag):
-            for j in range(len(time_series) - dim*lag - i):
-                dist = np.linalg.norm(Hankel_matrix[:,i], Hankel_matrix[:,j], axis = 1)
+            for j in range(i, len(time_series) - dim*lag):
+                dist = np.linalg.norm((Hankel_matrix[:,i] - Hankel_matrix[:,j]))
                 dist_matrix[i,j] = dist
                 dist_matrix[j,i] = dist
 
         # for all target points, get dim+1 nearest neighbors and make one-step-ahead prediction (weighted average)
-        #for target in range(len(time_series) - dim*lag):
+        predictions = []
+        N = len(time_series) - dim*lag
+
+        for target in range(N):
             # find dim + 1 nearest neighbors
+            nearest_neighbors = np.argpartition(dist_matrix[target,:], (0, dim + 2))
+            nearest_neighbors = np.arange(N)[nearest_neighbors[1:dim+2]]
 
+            min_distance = dist_matrix[target,nearest_neighbors[0]]
+            weighted_average = 0
+            total_weight = 0
 
+            # if min_distance = 0, next_val will be average of points
+            if min_distance == 0:
+                i = 0
+                weighted_average = 0
+                while dist_matrix[target, nearest_neighbors[i]] == 0:
+                    weighted_average += time_series[nearest_neighbors[i]]
+                    i += 1
+                weighted_average = weighted_average/(i + 1)
 
-        # create embedding matrix
-        embedding_matrix = time_series
+            else:
+                for neighbor in nearest_neighbors:
+                    # Add next value to weighted average
+                    next_val = time_series[neighbor + 1]
+                    weight = np.exp(-dist_matrix[target,neighbor]/min_distance)
+                    total_weight += weight
+                    weighted_average += next_val * weight
+
+                weighted_average = weighted_average/total_weight
+
+            predictions.append(weighted_average)
+
+            #TODO: in book, they have a minimum weight of 0.000001 (why?)
+
+        plt.scatter(time_series[:len(predictions)], predictions)
+        plt.plot(range(0,len(predictions) + 1), range(0,len(predictions) + 1))
+        plt.title("E = " + str(dim))
+        plt.xlabel("Observed values", fontsize = 12)
+        plt.ylabel("Predicted values", fontsize = 12)
+        plt.show()
 
     return 0
 
@@ -131,4 +165,4 @@ if __name__ == "__main__":
     #plot_embedding(lorenz_y, E = 3, lag = 181, filename = "")
 
     time_series = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
-    my_simplex_projection(time_series, lag = 1, max_E=4)
+    my_simplex_projection(time_series, lag = 1, max_E=2)
