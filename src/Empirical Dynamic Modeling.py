@@ -1,8 +1,11 @@
+import math
+
 import numpy as np
 from pyEDM import *
 import pandas as pd
 from create_dummy_time_series import *
 from sklearn import preprocessing
+from scipy.stats import pearsonr
 
 def simplex_projection(time_series, lag = -1, max_E = 10):
     """
@@ -39,7 +42,11 @@ def simplex_projection(time_series, lag = -1, max_E = 10):
 
     return(optimal_param["E"])
 
-def my_simplex_projection(time_series, lag = 1, max_E = 10):
+def my_simplex_projection(time_series, lag = 1, max_E = 10, show_plots = False):
+
+    cor_list = []
+    mae_list = []
+    rmse_list = []
 
     # For each dimension E
     for dim in range(1, max_E + 1):
@@ -99,14 +106,48 @@ def my_simplex_projection(time_series, lag = 1, max_E = 10):
 
             #TODO: in book, they have a minimum weight of 0.000001 (why?)
 
-        plt.scatter(time_series[:len(predictions)], predictions)
-        plt.plot(range(0,len(predictions) + 1), range(0,len(predictions) + 1))
-        plt.title("E = " + str(dim))
-        plt.xlabel("Observed values", fontsize = 12)
-        plt.ylabel("Predicted values", fontsize = 12)
-        plt.show()
+        if show_plots:
+            plt.scatter(time_series[:len(predictions)], predictions)
+            plt.plot(range(0,int(max(time_series))), range(0,int(max(time_series))))
+            plt.title("E = " + str(dim))
+            plt.xlabel("Observed values", fontsize = 12)
+            plt.ylabel("Predicted values", fontsize = 12)
+            plt.show()
 
-    return 0
+        # Pearson Correlation Coefficient
+        cor = pearsonr(time_series[:len(predictions)], predictions)[0]
+        cor_list.append(cor)
+
+        # Mean Absolute Error
+        mae = mean(abs(np.subtract(time_series[:len(predictions)],predictions)))
+        mae_list.append(mae)
+
+        # Root Mean Squared Error
+        mse = mean(np.square(np.subtract(time_series[:len(predictions)], predictions)))
+        rmse = math.sqrt(mse)
+        rmse_list.append(rmse)
+
+    # Show figure of performance plots
+    fig, axs = plt.subplots(3, sharex = True)
+    fig.suptitle('Performance measures per E')
+    axs[0].plot(range(1,len(cor_list)+1), cor_list)
+    axs[1].plot(range(1, len(mae_list) + 1), mae_list)
+    axs[2].plot(range(1, len(rmse_list) + 1), rmse_list)
+    axs[0].set_ylabel('rho')
+    axs[1].set_ylabel('MAE')
+    axs[2].set_ylabel('RMSE')
+    axs[2].set_xlabel('E')
+    axs[0].xaxis.grid(True)
+    axs[1].xaxis.grid(True)
+    axs[2].xaxis.grid(True)
+    plt.show()
+
+
+    print("Highest correlation for E = :", str(np.argmax(cor_list) + 1) + " (" + str(max(cor_list)) + ")")
+    print("Lowest MAE for E = :", str(np.argmin(mae_list) + 1) + " (" + str(min(mae_list)) + ")")
+    print("Lowest RMSE for E = :", str(np.argmin(rmse_list) + 1) + " (" + str(min(rmse_list)) + ")")
+
+    return np.argmax(cor_list) + 1
 
 
 
@@ -164,5 +205,5 @@ if __name__ == "__main__":
 
     #plot_embedding(lorenz_y, E = 3, lag = 181, filename = "")
 
-    time_series = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
-    my_simplex_projection(time_series, lag = 1, max_E=2)
+    #time_series = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+    my_simplex_projection(lorenz_y, lag = 1, max_E=5, show_plots=True)
