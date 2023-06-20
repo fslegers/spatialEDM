@@ -43,7 +43,7 @@ def simplex_projection(time_series, lag = -1, max_E = 10):
     return(optimal_param["E"])
 
 def my_simplex_projection(time_series, lag = 1, max_E = 10, show_plots = False):
-
+    #TODO: think about embedding dimension: number of lags or dimension of state space?
     cor_list = []
     mae_list = []
     rmse_list = []
@@ -107,7 +107,7 @@ def my_simplex_projection(time_series, lag = 1, max_E = 10, show_plots = False):
             #TODO: in book, they have a minimum weight of 0.000001 (why?)
 
         if show_plots:
-            plt.scatter(time_series[:len(predictions)], predictions)
+            plt.scatter(pearsonr(Hankel_matrix[0,:], predictions)[0], predictions)
             plt.plot(range(0,int(max(time_series))), range(0,int(max(time_series))))
             plt.title("E = " + str(dim + 1))
             plt.xlabel("Observed values", fontsize = 12)
@@ -115,15 +115,15 @@ def my_simplex_projection(time_series, lag = 1, max_E = 10, show_plots = False):
             plt.show()
 
         # Pearson Correlation Coefficient
-        cor = pearsonr(time_series[:len(predictions)], predictions)[0]
+        cor = pearsonr(Hankel_matrix[0,:], predictions)[0]
         cor_list.append(cor)
 
         # Mean Absolute Error
-        mae = mean(abs(np.subtract(time_series[:len(predictions)],predictions)))
+        mae = mean(abs(np.subtract(Hankel_matrix[0,:],predictions)))
         mae_list.append(mae)
 
         # Root Mean Squared Error
-        mse = mean(np.square(np.subtract(time_series[:len(predictions)], predictions)))
+        mse = mean(np.square(np.subtract(Hankel_matrix[0,:], predictions)))
         rmse = math.sqrt(mse)
         rmse_list.append(rmse)
 
@@ -149,8 +149,6 @@ def my_simplex_projection(time_series, lag = 1, max_E = 10, show_plots = False):
     print("Lowest RMSE for E = :", str(np.argmin(rmse_list) + 2) + " (" + str(min(rmse_list)) + ")")
 
     return np.argmax(cor_list) + 1
-
-
 
 def simplex_projection_replicates(time_series, lag = -1, max_E = 10):
     return 0
@@ -185,16 +183,83 @@ def S_map(time_series, lag = -1, E = 10):
 
     return(rho_per_theta)
 
-#TODO
-#CCM
-#Multi-view
-#PredictInterval
-#SpatialReplicates
-#PlotEmbeddingSpace
+def my_S_map(time_series, lag = 1, E = 2):
+    # Embed time series
+    N = len(time_series) - E*lag
+    Hankel_matrix = []
+    for i in range(E + 1):
+        if i == 0:
+            delayed_time_series = time_series[E * lag:]
+        else:
+            delayed_time_series = time_series[(E - i) * lag:-i * lag]
+        Hankel_matrix.append(delayed_time_series)
+
+    # create distance matrix
+    Hankel_matrix = np.stack(Hankel_matrix, axis=0)
+    dist_matrix = np.zeros((N, N))
+    for i in range(N):
+        for j in range(i, N):
+            dist = np.linalg.norm((Hankel_matrix[:, i] - Hankel_matrix[:, j]))
+            dist_matrix[i, j] = dist
+            dist_matrix[j, i] = dist
+
+    cor_list = []
+    mae_list = []
+    rmse_list = []
+
+    for theta in range(11):
+
+        predictions = []
+
+        for target in range(N):
+            d_m = mean(np.concatenate((dist_matrix[target,:target], dist_matrix[target, target+1:])))
+
+            if d_m == 0:
+                print('Distance to all points is zero.')
+                return 0
+
+            weights = np.exp(-theta * dist_matrix[target, :] / d_m)
+            weights[target] = 0
+            next_val = np.dot(weights,np.transpose(time_series[1:N+1])) / sum(weights)
+            predictions.append(next_val)
+
+        # Pearson Correlation Coefficient
+        cor = pearsonr(Hankel_matrix[0, :], predictions)[0]
+        cor_list.append(cor)
+
+        # Mean Absolute Error
+        mae = mean(abs(np.subtract(Hankel_matrix[0, :], predictions)))
+        mae_list.append(mae)
+
+        # Root Mean Squared Error
+        mse = mean(np.square(np.subtract(Hankel_matrix[0, :], predictions)))
+        rmse = math.sqrt(mse)
+        rmse_list.append(rmse)
+
+    # Show figure of performance plots
+    fig, axs = plt.subplots(3, sharex=True)
+    fig.suptitle('Performance measures per E')
+    axs[0].plot(range(0, 11), cor_list)
+    axs[1].plot(range(0, 11), mae_list)
+    axs[2].plot(range(0, 11), rmse_list)
+    axs[0].set_ylabel('rho')
+    axs[1].set_ylabel('MAE')
+    axs[2].set_ylabel('RMSE')
+    axs[2].set_xlabel('theta')
+    axs[0].set_ylim(min(cor_list), 1)
+    axs[0].xaxis.grid(True)
+    axs[1].xaxis.grid(True)
+    axs[2].xaxis.grid(True)
+    plt.show()
+
+
+
+#TODO: put "embed time series" and "create distance matrix" into own functions
+
 
 if __name__ == "__main__":
-    #lorenz_trajectory = simulate_lorenz(t_max = 30000)
-    #lorenz_y = lorenz_trajectory[:,1]
+    lorenz_trajectory = simulate_lorenz(t_max = 300, noise = 0.5)
+    lorenz_y = lorenz_trajectory[:,1]
 
     #thomas_trajectory = simulate_thomas()
     #thomas_x = thomas_trajectory[:,0]
@@ -208,3 +273,4 @@ if __name__ == "__main__":
 
     time_series = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
     my_simplex_projection(time_series, lag = 1, max_E=5, show_plots=False)
+    my_S_map(time_series, lag = 1, E = 2)
