@@ -109,7 +109,7 @@ def my_simplex_projection(time_series, lag = 1, max_E = 10, show_plots = False):
         if show_plots:
             plt.scatter(time_series[:len(predictions)], predictions)
             plt.plot(range(0,int(max(time_series))), range(0,int(max(time_series))))
-            plt.title("E = " + str(dim))
+            plt.title("E = " + str(dim + 1))
             plt.xlabel("Observed values", fontsize = 12)
             plt.ylabel("Predicted values", fontsize = 12)
             plt.show()
@@ -130,22 +130,23 @@ def my_simplex_projection(time_series, lag = 1, max_E = 10, show_plots = False):
     # Show figure of performance plots
     fig, axs = plt.subplots(3, sharex = True)
     fig.suptitle('Performance measures per E')
-    axs[0].plot(range(1,len(cor_list)+1), cor_list)
-    axs[1].plot(range(1, len(mae_list) + 1), mae_list)
-    axs[2].plot(range(1, len(rmse_list) + 1), rmse_list)
+    axs[0].plot(range(2,len(cor_list)+2), cor_list)
+    axs[1].plot(range(2, len(mae_list)+2), mae_list)
+    axs[2].plot(range(2, len(rmse_list)+2), rmse_list)
     axs[0].set_ylabel('rho')
     axs[1].set_ylabel('MAE')
     axs[2].set_ylabel('RMSE')
     axs[2].set_xlabel('E')
+    axs[0].set_ylim(min(cor_list), 1)
     axs[0].xaxis.grid(True)
     axs[1].xaxis.grid(True)
     axs[2].xaxis.grid(True)
     plt.show()
 
 
-    print("Highest correlation for E = :", str(np.argmax(cor_list) + 1) + " (" + str(max(cor_list)) + ")")
-    print("Lowest MAE for E = :", str(np.argmin(mae_list) + 1) + " (" + str(min(mae_list)) + ")")
-    print("Lowest RMSE for E = :", str(np.argmin(rmse_list) + 1) + " (" + str(min(rmse_list)) + ")")
+    print("Highest correlation for E = :", str(np.argmax(cor_list) + 2) + " (" + str(max(cor_list)) + ")")
+    print("Lowest MAE for E = :", str(np.argmin(mae_list) + 2) + " (" + str(min(mae_list)) + ")")
+    print("Lowest RMSE for E = :", str(np.argmin(rmse_list) + 2) + " (" + str(min(rmse_list)) + ")")
 
     return np.argmax(cor_list) + 1
 
@@ -192,8 +193,8 @@ def S_map(time_series, lag = -1, E = 10):
 #PlotEmbeddingSpace
 
 if __name__ == "__main__":
-    lorenz_trajectory = simulate_lorenz(t_max = 30000)
-    lorenz_y = lorenz_trajectory[:,1]
+    #lorenz_trajectory = simulate_lorenz(t_max = 30000)
+    #lorenz_y = lorenz_trajectory[:,1]
 
     #thomas_trajectory = simulate_thomas()
     #thomas_x = thomas_trajectory[:,0]
@@ -205,5 +206,5 @@ if __name__ == "__main__":
 
     #plot_embedding(lorenz_y, E = 3, lag = 181, filename = "")
 
-    #time_series = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
-    my_simplex_projection(lorenz_y, lag = 1, max_E=5, show_plots=True)
+    time_series = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+    my_simplex_projection(time_series, lag = 1, max_E=5, show_plots=False)
