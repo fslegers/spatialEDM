@@ -51,28 +51,28 @@ def my_simplex_projection(time_series, lag = 1, max_E = 10, show_plots = False):
     # For each dimension E
     for dim in range(1, max_E + 1):
         # add original time series
+        N = len(time_series) - dim*lag
         Hankel_matrix = []
 
         # add time delay embeddings
         for i in range(dim + 1):
             if i == 0:
-                delayed_time_series = time_series[(dim - i) * lag:]
+                delayed_time_series = time_series[(dim - i)*lag:]
             else:
                 delayed_time_series = time_series[(dim-i)*lag:-i*lag]
             Hankel_matrix.append(delayed_time_series)
 
         # create distance matrix
         Hankel_matrix = np.stack(Hankel_matrix, axis = 0)
-        dist_matrix = np.zeros((len(time_series) - dim*lag, len(time_series) - dim*lag))
-        for i in range(len(time_series) - dim*lag):
-            for j in range(i, len(time_series) - dim*lag):
+        dist_matrix = np.zeros((N, N))
+        for i in range(N):
+            for j in range(i, N):
                 dist = np.linalg.norm((Hankel_matrix[:,i] - Hankel_matrix[:,j]))
                 dist_matrix[i,j] = dist
                 dist_matrix[j,i] = dist
 
         # for all target points, get dim+1 nearest neighbors and make one-step-ahead prediction (weighted average)
         predictions = []
-        N = len(time_series) - dim*lag
 
         for target in range(N):
             # find dim + 1 nearest neighbors
@@ -107,9 +107,9 @@ def my_simplex_projection(time_series, lag = 1, max_E = 10, show_plots = False):
             #TODO: in book, they have a minimum weight of 0.000001 (why?)
 
         if show_plots:
-            plt.scatter(pearsonr(Hankel_matrix[0,:], predictions)[0], predictions)
+            plt.scatter(Hankel_matrix[0,:], predictions)
             plt.plot(range(0,int(max(time_series))), range(0,int(max(time_series))))
-            plt.title("E = " + str(dim + 1))
+            plt.title("E = " + str(dim))
             plt.xlabel("Observed values", fontsize = 12)
             plt.ylabel("Predicted values", fontsize = 12)
             plt.show()
@@ -130,23 +130,41 @@ def my_simplex_projection(time_series, lag = 1, max_E = 10, show_plots = False):
     # Show figure of performance plots
     fig, axs = plt.subplots(3, sharex = True)
     fig.suptitle('Performance measures per E')
-    axs[0].plot(range(2,len(cor_list)+2), cor_list)
-    axs[1].plot(range(2, len(mae_list)+2), mae_list)
-    axs[2].plot(range(2, len(rmse_list)+2), rmse_list)
+
+    axs[0].set_ymargin(0.1)
+    axs[1].set_ymargin(0.1)
+    axs[2].set_ymargin(0.1)
+
+    axs[0].plot(range(1,len(cor_list)+1), cor_list, color = 'black', marker = 'o')
+    axs[1].plot(range(1, len(mae_list)+1), mae_list, color = 'black', marker = 'o')
+    axs[2].plot(range(1, len(rmse_list)+1), rmse_list, color = 'black', marker = 'o')
+
     axs[0].set_ylabel('rho')
     axs[1].set_ylabel('MAE')
     axs[2].set_ylabel('RMSE')
     axs[2].set_xlabel('E')
-    axs[0].set_ylim(min(cor_list), 1)
-    axs[0].xaxis.grid(True)
+
+    #axs[0].set_ylim(min(cor_list)-0.005, 1)
+
+    major_tick = range(1,max_E + 1)
+    axs[0].set_xticks(major_tick)
+    axs[0].xaxis.grid(which='major')
     axs[1].xaxis.grid(True)
     axs[2].xaxis.grid(True)
+    axs[0].ticklabel_format(useOffset=False)
+    axs[0].yaxis.TickLabelFormat = '%.2f'
+
+    # Highlight the point with optimal performance measure
+    axs[0].plot(np.argmax(cor_list) + 1, max(cor_list), color='m', marker='D', markersize = 7)
+    axs[1].plot(np.argmin(mae_list) + 1, min(mae_list), color='m', marker='D', markersize = 7)
+    axs[2].plot(np.argmin(rmse_list) + 1, min(rmse_list), color='m', marker='D', markersize = 7)
+
     plt.show()
 
 
-    print("Highest correlation for E = :", str(np.argmax(cor_list) + 2) + " (" + str(max(cor_list)) + ")")
-    print("Lowest MAE for E = :", str(np.argmin(mae_list) + 2) + " (" + str(min(mae_list)) + ")")
-    print("Lowest RMSE for E = :", str(np.argmin(rmse_list) + 2) + " (" + str(min(rmse_list)) + ")")
+    print("Highest correlation for E = :", str(np.argmax(cor_list) + 1) + " (" + str(max(cor_list)) + ")")
+    print("Lowest MAE for E = :", str(np.argmin(mae_list) + 1) + " (" + str(min(mae_list)) + ")")
+    print("Lowest RMSE for E = :", str(np.argmin(rmse_list) + 1) + " (" + str(min(rmse_list)) + ")")
 
     return np.argmax(cor_list) + 1
 
@@ -238,28 +256,44 @@ def my_S_map(time_series, lag = 1, E = 2):
 
     # Show figure of performance plots
     fig, axs = plt.subplots(3, sharex=True)
-    fig.suptitle('Performance measures per E')
-    axs[0].plot(range(0, 11), cor_list)
-    axs[1].plot(range(0, 11), mae_list)
-    axs[2].plot(range(0, 11), rmse_list)
+    fig.suptitle('Performance measures per Theta')
+
+    axs[0].set_ymargin(0.1)
+    axs[1].set_ymargin(0.1)
+    axs[2].set_ymargin(0.1)
+
+    axs[0].plot(range(0, 11), cor_list, color = 'black', marker = 'o')
+    axs[1].plot(range(0, 11), mae_list, color = 'black', marker = 'o')
+    axs[2].plot(range(0, 11), rmse_list, color = 'black', marker = 'o')
+
     axs[0].set_ylabel('rho')
     axs[1].set_ylabel('MAE')
     axs[2].set_ylabel('RMSE')
     axs[2].set_xlabel('theta')
-    axs[0].set_ylim(min(cor_list), 1)
+
+    major_tick = range(0, 11)
+    axs[0].set_xticks(major_tick)
+    axs[0].xaxis.grid(which='major')
     axs[0].xaxis.grid(True)
     axs[1].xaxis.grid(True)
     axs[2].xaxis.grid(True)
+
+    axs[0].plot(np.argmax(cor_list), max(cor_list), color='m', marker='D', markersize = 7)
+    axs[1].plot(np.argmin(mae_list), min(mae_list), color='m', marker='D', markersize = 7)
+    axs[2].plot(np.argmin(rmse_list), min(rmse_list), color='m', marker='D', markersize = 7)
+
     plt.show()
 
-
-
 #TODO: put "embed time series" and "create distance matrix" into own functions
+#TODO: Simplex plot predicted values against actual values for optimal E
+#TODO: S-Map plot predicted values against actual values for optimal theta
 
 
 if __name__ == "__main__":
-    lorenz_trajectory = simulate_lorenz(t_max = 300, noise = 0.5)
-    lorenz_y = lorenz_trajectory[:,1]
+    lorenz_trajectory = simulate_lorenz(t_max = 1000, noise = 1.5)
+    lorenz_y = lorenz_trajectory[250:,1]
+
+    white_noise = simulate_additive_white_noise(delta_t = 1, t_max = 300, noise = 0.5)
 
     #thomas_trajectory = simulate_thomas()
     #thomas_x = thomas_trajectory[:,0]
@@ -271,6 +305,13 @@ if __name__ == "__main__":
 
     #plot_embedding(lorenz_y, E = 3, lag = 181, filename = "")
 
-    time_series = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
-    my_simplex_projection(time_series, lag = 1, max_E=5, show_plots=False)
-    my_S_map(time_series, lag = 1, E = 2)
+    time_series = lorenz_y
+
+    plot_time_series(time_series)
+    plot_autocorrelation(time_series)
+    plot_partial_autocorrelation(time_series)
+    plot_recurrence(time_series[1:100], delay = 1)
+    make_lag_scatterplot(time_series, lag = 1)
+
+    my_simplex_projection(time_series, lag = 60, max_E = 5, show_plots = False)
+    my_S_map(time_series, lag = 60, E = 5)

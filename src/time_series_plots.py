@@ -78,10 +78,6 @@ def plot_embedding(time_series, E = 3, lag = 1, filename = ""):
 
         mlab.close()
 
-
-
-
-
 def plot_recurrence(time_series, delay = 1, eps = 0.05, filename = ""):
     """
     :type eps: double
@@ -149,9 +145,14 @@ def plot_autocorrelation(time_series, filename = ""):
     auto_correlations = acf(time_series, nlags=len(time_series), bartlett_confint=True)
 
     i = 1
+    print('In autocorrelation function:')
+    min_corr = min(abs(auto_correlations))
     while(i < len(time_series)):
-        if auto_correlations[i] <= 0:
-            print("first negative value at lag ", i)
+        if auto_correlations[i]  >= min_corr - 0.05 and auto_correlations[i] <= min_corr + 0.05:
+            print("first minimum value at lag ", i)
+            break
+        if auto_correlations[i] <= 0.1:
+            print('first small value at lag ', i)
             break
         i += 1
 
@@ -217,14 +218,14 @@ def plot_correlation(x, y, window_size = 0, filename = ""):
 
     plt.show()
 
-def make_lag_scatterplot(time_series, lag, filename = ""):
+def make_lag_scatterplot(time_series, lag = 1, filename = ""):
     x = time_series[lag:]
     y = time_series[:-lag]
 
-    plt.plot(y, x)
-    plt.xlabel("x(t - tau)")
+    plt.scatter(y, x)
+    plt.xlabel("x(t - "+ str(lag) + ")")
     plt.ylabel("x(t)")
-    plt.title("Lag plot, tau = " + str(lag), fontsize = 18)
+    plt.title("Lag plot, lag = " + str(lag))
 
     if(filename != ""):
         plt.savefig('scatterplot_'+filename)
