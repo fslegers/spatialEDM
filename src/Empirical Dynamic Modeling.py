@@ -7,6 +7,38 @@ from create_dummy_time_series import *
 from sklearn import preprocessing
 from scipy.stats import pearsonr
 
+def create_hankel_matrix(time_series, lag = 1, E = 2):
+    """
+    Returns the first E+1 rows of the Hankel-matrix of a time series. Each consecutive row contains
+    the time series shifted backwards lag time steps.
+    """
+    Hankel_matrix = []
+
+    for i in range(E + 1):
+        if i == 0:
+            # Add original time series
+            delayed_time_series = time_series[(E - i) * lag:]
+        else:
+            # Add time series that is shifted i times
+            delayed_time_series = time_series[(E - i) * lag:-i * lag]
+        Hankel_matrix.append(delayed_time_series)
+
+    # turn list into np.array
+    Hankel_matrix = np.stack(Hankel_matrix, axis=0)
+
+    return(Hankel_matrix)
+
+def create_distance_matrix(hankel_matrix):
+    N = hankel_matrix.shape[1]
+    dist_matrix = np.zeros((N, N))
+    for i in range(N):
+        for j in range(i, N):
+            dist = np.linalg.norm((hankel_matrix[:, i] - hankel_matrix[:, j]))
+            dist_matrix[i, j] = dist
+            dist_matrix[j, i] = dist
+
+    return(dist_matrix)
+
 def simplex_projection(time_series, lag = -1, max_E = 10):
     """
     Finds the optimal value for the embedding dimension E by one-step-ahead predictions
@@ -50,36 +82,19 @@ def my_simplex_projection(time_series, lag = 1, max_E = 10, show_plots = False):
 
     # For each dimension E
     for dim in range(1, max_E + 1):
-        # add original time series
-        N = len(time_series) - dim*lag
-        Hankel_matrix = []
-
-        # add time delay embeddings
-        for i in range(dim + 1):
-            if i == 0:
-                delayed_time_series = time_series[(dim - i)*lag:]
-            else:
-                delayed_time_series = time_series[(dim-i)*lag:-i*lag]
-            Hankel_matrix.append(delayed_time_series)
-
-        # create distance matrix
-        Hankel_matrix = np.stack(Hankel_matrix, axis = 0)
-        dist_matrix = np.zeros((N, N))
-        for i in range(N):
-            for j in range(i, N):
-                dist = np.linalg.norm((Hankel_matrix[:,i] - Hankel_matrix[:,j]))
-                dist_matrix[i,j] = dist
-                dist_matrix[j,i] = dist
+        hankel_matrix = create_hankel_matrix(time_series, lag, dim)
+        dist_matrix = create_distance_matrix(hankel_matrix)
 
         # for all target points, get dim+1 nearest neighbors and make one-step-ahead prediction (weighted average)
         predictions = []
+        N = hankel_matrix.shape[1]
 
         for target in range(N):
             # find dim + 1 nearest neighbors
-            nearest_neighbors = np.argpartition(dist_matrix[target,:], (0, dim + 2))
+            nearest_neighbors = np.argpartition(dist_matrix[target, :], (0, dim + 2))
             nearest_neighbors = np.arange(N)[nearest_neighbors[1:dim+2]]
 
-            min_distance = dist_matrix[target,nearest_neighbors[0]]
+            min_distance = dist_matrix[target, nearest_neighbors[0]]
             weighted_average = 0
             total_weight = 0
 
@@ -96,7 +111,7 @@ def my_simplex_projection(time_series, lag = 1, max_E = 10, show_plots = False):
                 for neighbor in nearest_neighbors:
                     # Add next value to weighted average
                     next_val = time_series[neighbor + 1]
-                    weight = np.exp(-dist_matrix[target,neighbor]/min_distance)
+                    weight = np.exp(-dist_matrix[target, neighbor]/min_distance)
                     total_weight += weight
                     weighted_average += next_val * weight
 
@@ -107,7 +122,7 @@ def my_simplex_projection(time_series, lag = 1, max_E = 10, show_plots = False):
             #TODO: in book, they have a minimum weight of 0.000001 (why?)
 
         if show_plots:
-            plt.scatter(Hankel_matrix[0,:], predictions)
+            plt.scatter(hankel_matrix[0, :], predictions)
             plt.plot(range(0,int(max(time_series))), range(0,int(max(time_series))))
             plt.title("E = " + str(dim))
             plt.xlabel("Observed values", fontsize = 12)
@@ -115,7 +130,7 @@ def my_simplex_projection(time_series, lag = 1, max_E = 10, show_plots = False):
             plt.show()
 
         # Pearson Correlation Coefficient
-        cor = pearsonr(Hankel_matrix[0,:], predictions)[0]
+        cor = pearsonr(Hankel_matrix[0, :], predictions)[0]
         cor_list.append(cor)
 
         # Mean Absolute Error
@@ -287,13 +302,14 @@ def my_S_map(time_series, lag = 1, E = 2):
 #TODO: put "embed time series" and "create distance matrix" into own functions
 #TODO: Simplex plot predicted values against actual values for optimal E
 #TODO: S-Map plot predicted values against actual values for optimal theta
+#TODO: Make thing parallel
 
 
 if __name__ == "__main__":
-    lorenz_trajectory = simulate_lorenz(t_max = 1000, noise = 1.5)
-    lorenz_y = lorenz_trajectory[250:,1]
+    #lorenz_trajectory = simulate_lorenz(t_max = 1000, noise = 1.5)
+    #lorenz_y = lorenz_trajectory[250:,1]
 
-    white_noise = simulate_additive_white_noise(delta_t = 1, t_max = 300, noise = 0.5)
+    #white_noise = simulate_additive_white_noise(delta_t = 1, t_max = 300, noise = 0.5)
 
     #thomas_trajectory = simulate_thomas()
     #thomas_x = thomas_trajectory[:,0]
@@ -305,13 +321,13 @@ if __name__ == "__main__":
 
     #plot_embedding(lorenz_y, E = 3, lag = 181, filename = "")
 
-    time_series = lorenz_y
+    time_series = [1,2,3,4,5,6,7,8,9,10]
 
-    plot_time_series(time_series)
-    plot_autocorrelation(time_series)
-    plot_partial_autocorrelation(time_series)
-    plot_recurrence(time_series[1:100], delay = 1)
-    make_lag_scatterplot(time_series, lag = 1)
+    # plot_time_series(time_series)
+    # plot_autocorrelation(time_series)
+    # plot_partial_autocorrelation(time_series)
+    # plot_recurrence(time_series[1:100], delay = 1)
+    # make_lag_scatterplot(time_series, lag = 1)
 
-    my_simplex_projection(time_series, lag = 60, max_E = 5, show_plots = False)
-    my_S_map(time_series, lag = 60, E = 5)
+    my_simplex_projection(time_series, lag = 1, max_E = 3, show_plots = False)
+    my_S_map(time_series, lag = 1, E = 3)
