@@ -6,6 +6,7 @@ from pyts.image import RecurrencePlot
 from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
 from statsmodels.tsa.stattools import acf
 from mayavi import mlab
+from create_dummy_time_series import *
 
 def plot_time_series(time_series, obs_times = None, filename = ""):
     """
@@ -31,15 +32,15 @@ def plot_time_series(time_series, obs_times = None, filename = ""):
     else:
         # if no observation times are given, create array
         if obs_times == None:
-            obs_times = np.arange(0, np.shape(time_series)[0])
+            obs_times = np.arange(0, np.shape(time_series)[1])
 
-        fig, axs = plt.subplots(np.shape(time_series)[1])
+        fig, axs = plt.subplots(np.shape(time_series)[0])
         fig.suptitle("Time Series Plots", fontsize = 18)
-        for i in range(np.shape(time_series)[1]):
-            axs[i].plot(obs_times, time_series[:,i])
-            axs[i].set(ylabel = "x" + str(i), xlabel = "t")
+        for i in range(np.shape(time_series)[0]):
+            axs[i].plot(obs_times, time_series[i, :])
+            axs[i].set(ylabel="x" + str(i), xlabel="t")
 
-        plt.suptitle((str(filename)+"\n Time series plot"), fontsize = 15)
+        plt.suptitle((str(filename)+"\n Time series plot"), fontsize=15)
 
     # save plot iff filename is provided
     if filename != "":
@@ -264,10 +265,5 @@ def example_mayavi():
     mlab.show()
 
 if __name__ == "__main__":
-    #example_mayavi()
-
-    x = np.arange(0, 20, 0.1)
-    x = np.sin(x)
-
-
-    plot_embedding(x, 3, 3)
+    host_parasitoid = simulate_host_parasitoid(t_max=100)
+    plot_time_series(np.array(host_parasitoid))
