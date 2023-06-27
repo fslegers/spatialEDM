@@ -39,6 +39,46 @@ def create_distance_matrix(hankel_matrix):
 
     return(dist_matrix)
 
+def plot_result_in_time_series(time_series, targets, nearest_neighbors, weights, lag = 1, E = 1):
+
+    obs_times = np.arange(1, 1 + len(time_series), 1)
+
+    for i in range(len(targets)):
+
+        plt.plot(obs_times, time_series, color='black', lw=1)
+        plt.scatter(obs_times, time_series, 5, color='black', marker='o')
+
+        # Decide on xlim
+        min_x = min(targets[i], min(nearest_neighbors[i])) + E*lag
+        max_x = max(targets[i], max(nearest_neighbors[i])) + E*lag
+
+        width = max_x - min_x
+        if width <= 50:
+            min_x = max(1, min_x - int((50 - width)/2.0))
+            max_x = min(len(time_series) + 1, max_x + int((50 - width)/2.0))
+
+        else:
+            min_x = max(1, min_x - 10)
+            max_x = min(len(time_series) + 1, max_x + 10)
+
+        plt.xlim((min_x, max_x))
+
+        # Highlight target point
+        target = int(targets[i] + E*lag)
+        plt.scatter(target + 1, time_series[target], 40, color='m', marker='s', zorder=2)
+        plt.scatter(target + 2, time_series[target + 1], 40, color='m', marker='*', zorder=2)
+
+        # Highlight nearest neighbors
+        for neighbor in nearest_neighbors[i]:
+            neighbor = int(neighbor + E*lag + 1)
+            plt.scatter(neighbor + 1, time_series[neighbor], 25, color='c', marker='s', zorder=2)
+            plt.scatter(neighbor + 2, time_series[neighbor + 1], 25, color='c', marker='D', zorder=2)
+
+        plt.title(str(E+1) + "NN-forecast\nLag = " + str(lag) + ", E = " + str(E))
+        plt.show()
+
+    return 0
+
 def simplex_projection(time_series, lag = -1, max_E = 10):
     """
     Finds the optimal value for the embedding dimension E by one-step-ahead predictions
@@ -74,7 +114,7 @@ def simplex_projection(time_series, lag = -1, max_E = 10):
 
     return(optimal_param["E"])
 
-def S_map(time_series, lag=-1, E=10):
+def S_map(time_series, obs_time, lag=-1, E=10):
     """
     Evaluates Smap prediction skill for different values of localization parameter theta)
     :param time_series:
@@ -113,6 +153,9 @@ def my_simplex_projection(time_series, lag = 1, max_E = 10, show_plots = False):
     optimal_cor = 0
     optimal_predictions = []
 
+    KNNs_for_plotting = []
+    weights_for_plotting = []
+
     # For each dimension E
     for dim in range(1, max_E + 1):
         hankel_matrix = create_hankel_matrix(time_series, lag, dim)
@@ -120,6 +163,9 @@ def my_simplex_projection(time_series, lag = 1, max_E = 10, show_plots = False):
 
         predictions = []
         N = hankel_matrix.shape[1]
+
+        KNNs_per_dim = []
+        weights_per_dim = []
 
         # for all target points, get dim+1 nearest neighbors and make one-step-ahead prediction (weighted average)
         for target in range(N-1):
@@ -130,6 +176,7 @@ def my_simplex_projection(time_series, lag = 1, max_E = 10, show_plots = False):
             min_distance = dist_matrix[target, nearest_neighbors[0]]
             weighted_average = 0
             total_weight = 0
+            weights = []
 
             # if min_distance = 0, next_val will be average of points
             if min_distance == 0:
@@ -147,10 +194,21 @@ def my_simplex_projection(time_series, lag = 1, max_E = 10, show_plots = False):
                     weight = np.exp(-dist_matrix[target, neighbor]/min_distance)
                     total_weight += weight
                     weighted_average += next_val * weight
+                    weights.append(weight)
 
                 weighted_average = weighted_average/total_weight
 
             predictions.append(weighted_average)
+
+            # Save weights and KNNs for plotting if this dim is the optimal dim
+            if target in [0, int((N-2)/2), N-2]:
+                weights_per_dim.append(weights)
+                KNNs_per_dim.append(nearest_neighbors)
+
+            # plot time series with neighbors to make result more insightful
+            # do this for first, last and middle point
+            #if target in [0, N-1, int((N-1)/2)] and min_distance > 0:
+                #plot_result_in_time_series(time_series, target, nearest_neighbors, weights, lag, dim)
 
             #TODO: in book, they have a minimum weight of 0.000001 (why?)
 
@@ -179,6 +237,9 @@ def my_simplex_projection(time_series, lag = 1, max_E = 10, show_plots = False):
             optimal_cor = cor
             optimal_predictions = predictions
             optimal_E = dim
+
+            weights_for_plotting = weights_per_dim
+            KNNs_for_plotting = KNNs_per_dim
 
     # Show figure of performance plots
     fig, axs = plt.subplots(3, sharex = True)
@@ -236,6 +297,8 @@ def my_simplex_projection(time_series, lag = 1, max_E = 10, show_plots = False):
     plt.title("Simplex results for E = " + str(np.argmax(cor_list) + 1))
 
     plt.show()
+
+    plot_result_in_time_series(time_series, [0, int(N-2)/2, N-2], KNNs_for_plotting, weights_for_plotting, lag, optimal_E)
 
     return optimal_E
 
@@ -344,10 +407,9 @@ def my_S_map(time_series, lag = 1, E = 2):
 #TODO: Make things parallel
 
 if __name__ == "__main__":
-    #lorenz_trajectory = simulate_lorenz(t_max=1000, noise=0)
-    #lorenz_y = lorenz_trajectory[250:, 1]
+    lorenz_trajectory = simulate_lorenz(t_max=1000, noise=0)
+    lorenz_y = lorenz_trajectory[250:, 1]
     #white_noise = simulate_additive_white_noise(delta_t=2, t_max=1500, noise=2.5)
-
 
     #thomas_trajectory = simulate_thomas()
     #thomas_x = thomas_trajectory[:,0]
@@ -359,16 +421,16 @@ if __name__ == "__main__":
 
     #plot_embedding(lorenz_y, E = 3, lag = 181, filename = "")
 
-    # time_series = lorenz_y
+    time_series = lorenz_y
 
-    host_parasitoid = simulate_host_parasitoid(t_max=100)
-    plot_time_series(np.array(host_parasitoid))
-    time_series = host_parasitoid[0]
+    #host_parasitoid = simulate_host_parasitoid(t_max=100)
+    plot_time_series(time_series)
+    #time_series = host_parasitoid[0]
 
     #plot_autocorrelation(time_series)
     #plot_partial_autocorrelation(time_series)
-    plot_recurrence(time_series[1:100], delay=8)
-    make_lag_scatterplot(time_series, lag=8)
+    #plot_recurrence(time_series[1:100], delay=8)
+    #make_lag_scatterplot(time_series, lag=8)
 
     optimal_E = my_simplex_projection(time_series, lag=8, max_E=10, show_plots=False)
-    my_S_map(time_series, lag=8, E=optimal_E)
+    #my_S_map(time_series, lag=8, E=optimal_E)
