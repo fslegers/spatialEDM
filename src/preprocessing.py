@@ -45,12 +45,18 @@ def standardize_time_series(time_series):
     """
 
     # perform standardization
-    scaler = sklearn.preprocessing.StandardScaler().fit(time_series)
-    time_series_scaled = scaler.transform(time_series)
+    try:
+        scalar = sklearn.preprocessing.StandardScaler().fit(time_series)
+
+    except:
+        time_series = np.reshape(time_series, (-1,1))
+        scalar = sklearn.preprocessing.StandardScaler().fit(time_series)
+
+    time_series_scaled = scalar.transform(time_series)
 
     # print mean and variances of each time series
-    print(time_series_scaled.mean(axis = 0))
-    print(time_series_scaled.std(axis = 0))
+    #print(time_series_scaled.mean(axis = 0))
+    #print(time_series_scaled.std(axis = 0))
 
     return(time_series_scaled)
 

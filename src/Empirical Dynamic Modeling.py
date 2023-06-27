@@ -4,6 +4,7 @@ import numpy as np
 from pyEDM import *
 import pandas as pd
 from create_dummy_time_series import *
+from preprocessing import *
 from sklearn import preprocessing
 from scipy.stats import pearsonr
 
@@ -39,7 +40,7 @@ def create_distance_matrix(hankel_matrix):
 
     return(dist_matrix)
 
-def plot_result_in_time_series(time_series, targets, nearest_neighbors, weights, lag = 1, E = 1):
+def plot_result_in_time_series(time_series, targets, nearest_neighbors, weights, predicted, lag = 1, E = 1):
 
     obs_times = np.arange(1, 1 + len(time_series), 1)
 
@@ -49,13 +50,13 @@ def plot_result_in_time_series(time_series, targets, nearest_neighbors, weights,
         plt.scatter(obs_times, time_series, 5, color='black', marker='o')
 
         # Decide on xlim
-        min_x = min(targets[i], min(nearest_neighbors[i])) + E*lag
-        max_x = max(targets[i], max(nearest_neighbors[i])) + E*lag
+        min_x = min(targets[i], min(nearest_neighbors[i])) - 1
+        max_x = max(targets[i], max(nearest_neighbors[i])) + E*lag + 1
 
         width = max_x - min_x
         if width <= 50:
-            min_x = max(1, min_x - int((50 - width)/2.0))
-            max_x = min(len(time_series) + 1, max_x + int((50 - width)/2.0))
+            min_x = max(1, min_x - int((50 - width)/2.0)) - 1
+            max_x = min(len(time_series) + 1, max_x + int((50 - width)/2.0)) + 1
 
         else:
             min_x = max(1, min_x - 10)
@@ -63,16 +64,35 @@ def plot_result_in_time_series(time_series, targets, nearest_neighbors, weights,
 
         plt.xlim((min_x, max_x))
 
-        # Highlight target point
-        target = int(targets[i] + E*lag)
-        plt.scatter(target + 1, time_series[target], 40, color='m', marker='s', zorder=2)
-        plt.scatter(target + 2, time_series[target + 1], 40, color='m', marker='*', zorder=2)
+        # Make shaded background for target history
+        #plt.axvspan(target - E*lag + 1.1, target + 1, facecolor='m',alpha=0.2)
+        #for j in np.arange(target - E * lag + 1, target - lag + 1):
+            #plt.scatter(j, time_series[j], color = 'm', zorder=2)
 
         # Highlight nearest neighbors
         for neighbor in nearest_neighbors[i]:
             neighbor = int(neighbor + E*lag + 1)
-            plt.scatter(neighbor + 1, time_series[neighbor], 25, color='c', marker='s', zorder=2)
-            plt.scatter(neighbor + 2, time_series[neighbor + 1], 25, color='c', marker='D', zorder=2)
+            plt.plot([neighbor + 1, neighbor + 1 + lag], [time_series[neighbor], time_series[neighbor + lag]],
+                     linestyle='--', color='tab:blue')
+            plt.scatter(neighbor + 1, time_series[neighbor], 40, color='blue', marker='s', zorder=2)
+            plt.scatter(neighbor + 1 + lag, time_series[neighbor + lag], 35, color='blue', marker='D', zorder=2)
+            plt.axvspan(neighbor - E*lag + 1.1, neighbor + 1 - 0.1, facecolor='c',alpha=0.1)
+
+            # Highlight embedding vector
+            for j in range(1, E + 1):
+                plt.scatter(neighbor - j * lag + 1, time_series[neighbor - j * lag], 5, color='blue', marker='o', zorder=2)
+
+        # Highlight target point
+        target = int(targets[i] + E * lag)
+        plt.plot([target + 1, target + 1 + lag], [time_series[target], predicted[i]],
+                linestyle='--', color='tab:purple')
+        plt.scatter(target + 1, time_series[target], 40, color='m', marker='s', zorder=2)
+        plt.scatter(target + 1 + lag, time_series[target + lag], 35, color='m', marker='D', zorder=2)
+        plt.scatter(target + 1 + lag, predicted[i], 60, color='m', marker='*', zorder=2)
+
+        # Highlight embedding vector
+        for j in range(1, E + 1):
+            plt.scatter(target - j * lag + 1, time_series[target - j * lag], 5, color='m', marker='o', zorder=2)
 
         plt.title(str(E+1) + "NN-forecast\nLag = " + str(lag) + ", E = " + str(E))
         plt.show()
@@ -155,6 +175,7 @@ def my_simplex_projection(time_series, lag = 1, max_E = 10, show_plots = False):
 
     KNNs_for_plotting = []
     weights_for_plotting = []
+    predicted_for_plotting = []
 
     # For each dimension E
     for dim in range(1, max_E + 1):
@@ -166,6 +187,7 @@ def my_simplex_projection(time_series, lag = 1, max_E = 10, show_plots = False):
 
         KNNs_per_dim = []
         weights_per_dim = []
+        predicted_per_dim = []
 
         # for all target points, get dim+1 nearest neighbors and make one-step-ahead prediction (weighted average)
         for target in range(N-1):
@@ -204,6 +226,7 @@ def my_simplex_projection(time_series, lag = 1, max_E = 10, show_plots = False):
             if target in [0, int((N-2)/2), N-2]:
                 weights_per_dim.append(weights)
                 KNNs_per_dim.append(nearest_neighbors)
+                predicted_per_dim.append(weighted_average)
 
             # plot time series with neighbors to make result more insightful
             # do this for first, last and middle point
@@ -240,6 +263,7 @@ def my_simplex_projection(time_series, lag = 1, max_E = 10, show_plots = False):
 
             weights_for_plotting = weights_per_dim
             KNNs_for_plotting = KNNs_per_dim
+            predicted_for_plotting = predicted_per_dim
 
     # Show figure of performance plots
     fig, axs = plt.subplots(3, sharex = True)
@@ -298,7 +322,11 @@ def my_simplex_projection(time_series, lag = 1, max_E = 10, show_plots = False):
 
     plt.show()
 
-    plot_result_in_time_series(time_series, [0, int(N-2)/2, N-2], KNNs_for_plotting, weights_for_plotting, lag, optimal_E)
+    plot_result_in_time_series(time_series, [0, int(N-2)/2, N-2],
+                               KNNs_for_plotting,
+                               weights_for_plotting,
+                               predicted_for_plotting,
+                               lag, optimal_E)
 
     return optimal_E
 
@@ -407,7 +435,7 @@ def my_S_map(time_series, lag = 1, E = 2):
 #TODO: Make things parallel
 
 if __name__ == "__main__":
-    lorenz_trajectory = simulate_lorenz(t_max=1000, noise=0)
+    lorenz_trajectory = simulate_lorenz(t_max=1000, noise=0.01)
     lorenz_y = lorenz_trajectory[250:, 1]
     #white_noise = simulate_additive_white_noise(delta_t=2, t_max=1500, noise=2.5)
 
@@ -421,7 +449,9 @@ if __name__ == "__main__":
 
     #plot_embedding(lorenz_y, E = 3, lag = 181, filename = "")
 
-    time_series = lorenz_y
+    time_series = np.diff(lorenz_y)
+    time_series = standardize_time_series(time_series)
+    time_series = time_series[:, 0]
 
     #host_parasitoid = simulate_host_parasitoid(t_max=100)
     plot_time_series(time_series)
@@ -432,5 +462,5 @@ if __name__ == "__main__":
     #plot_recurrence(time_series[1:100], delay=8)
     #make_lag_scatterplot(time_series, lag=8)
 
-    optimal_E = my_simplex_projection(time_series, lag=8, max_E=10, show_plots=False)
+    optimal_E = my_simplex_projection(time_series, lag=8, max_E=6, show_plots=False)
     #my_S_map(time_series, lag=8, E=optimal_E)
