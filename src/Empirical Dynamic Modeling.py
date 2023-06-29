@@ -1,5 +1,6 @@
 import math
 
+import matplotlib.cm
 import numpy as np
 from pyEDM import *
 import pandas as pd
@@ -78,8 +79,8 @@ def plot_performance_simplex(cor_list, mae_list, rmse_list):
     print("Lowest MAE for E = :", str(np.argmin(mae_list) + 1) + " (" + str(min(mae_list)) + ")")
     print("Lowest RMSE for E = :", str(np.argmin(rmse_list) + 1) + " (" + str(min(rmse_list)) + ")")
 
-def plot_result_in_time_series(time_series, targets, nearest_neighbors, weights, predicted, lag = 1, E = 1):
-
+def plot_results_simplex(time_series, targets, nearest_neighbors, predicted, lag, E):
+    #TODO: something with weights
     time_series = create_hankel_matrix(time_series, lag, E)[0,:]
     obs_times = np.arange(0, len(time_series), 1)
 
@@ -89,7 +90,7 @@ def plot_result_in_time_series(time_series, targets, nearest_neighbors, weights,
         plt.scatter(obs_times, time_series, 5, color='black', marker='o')
 
         # Decide on xlim
-        min_x = max(1, min(target, min(nearest_neighbors[i])) - 1)
+        min_x = max(1, min(target, min(nearest_neighbors[i])) - E*lag - 1)
         max_x = min(len(time_series), max(target, max(nearest_neighbors[i])) + lag*E + 1)
 
         width = max_x - min_x
@@ -104,17 +105,17 @@ def plot_result_in_time_series(time_series, targets, nearest_neighbors, weights,
         plt.xlim((min_x, max_x))
 
         # Make shaded background for target history
-        #plt.axvspan(target - E*lag + 1.1, target + 1, facecolor='m',alpha=0.2)
-        #for j in np.arange(target - E * lag + 1, target - lag + 1):
-            #plt.scatter(j, time_series[j], color = 'm', zorder=2)
+        plt.axvspan(target - E*lag + 1.1, target + 1, facecolor='m',alpha=0.2)
+        for j in np.arange(target - E * lag + 1, target - lag + 1):
+            plt.scatter(j, time_series[j], color = 'm', zorder=2)
 
         # Highlight nearest neighbors
         for neighbor in nearest_neighbors[i]:
-            plt.plot([neighbor, neighbor + lag], [time_series[neighbor], time_series[neighbor + 1]],
+            plt.plot([neighbor, neighbor + 1], [time_series[neighbor], time_series[neighbor + 1]],
                      linestyle='--', color='blue', lw = 2)
-            plt.scatter(neighbor, time_series[neighbor], 30, color='blue', marker='o', zorder=2)
-            plt.scatter(neighbor + 1, time_series[neighbor + 1], 35, color='blue', marker='D', zorder=2)
-            #plt.axvspan(neighbor - E*lag + 1.1, neighbor + 1 - 0.1, facecolor='c',alpha=0.1)
+            plt.scatter(neighbor, time_series[neighbor], 5, color='blue', marker='o', zorder=2)
+            plt.scatter(neighbor + 1, time_series[neighbor + 1], 30, color='blue', marker='D', zorder=2)
+            plt.axvspan(neighbor - E*lag + 1.1, neighbor + 1 - 0.1, facecolor='c',alpha=0.1)
 
             # Highlight embedding vector
             for j in range(1, E + 1):
@@ -123,8 +124,8 @@ def plot_result_in_time_series(time_series, targets, nearest_neighbors, weights,
         # Highlight target point
         plt.plot([target, target + 1], [time_series[target], predicted[i]],
                 linestyle='--', color='tab:purple', lw = 2)
-        plt.scatter(target, time_series[target], 30, color='tab:purple', marker='o', zorder=2)
-        plt.scatter(target + 1, time_series[target+1], 35, color='tab:purple', marker='D', zorder=2)
+        plt.scatter(target, time_series[target], 5, color='tab:purple', marker='o', zorder=2)
+        plt.scatter(target + 1, time_series[target+1], 30, color='tab:purple', marker='D', zorder=2)
         plt.scatter(target + 1, predicted[i], 75, color='magenta', marker='*', zorder=2)
 
         # Highlight embedding vector
@@ -132,6 +133,36 @@ def plot_result_in_time_series(time_series, targets, nearest_neighbors, weights,
             plt.scatter(target - j * lag, time_series[target - j * lag], 5, color='m', marker='o', zorder=2)
 
         plt.title(str(E+1) + "NN-forecast\nLag = " + str(lag) + ", E = " + str(E))
+        plt.show()
+
+    return 0
+
+def plot_results_smap(time_series, targets, weights, predicted, lag, E):
+
+    time_series = create_hankel_matrix(time_series, lag, E)[0,:]
+    obs_times = np.arange(0, len(time_series), 1)
+
+    #indices to step through colormap
+    cmap = matplotlib.cm.get_cmap('Blues')
+
+    for i in range(len(targets)):
+        target = targets[i]
+        plt.plot(obs_times, time_series, color='black', lw=0.5)
+        plt.scatter(obs_times, time_series, 5, color='black', marker='o')
+
+        # Highlight nearest neighbors
+        for neighbor in range(len(time_series) - 1):
+            color = cmap(0.05 + 0.95*(weights[i][neighbor] - min(weights[i]))/(max(weights[i]) - min(weights[i])))
+            plt.axvspan(neighbor + 0.5, neighbor + 1.5, facecolor=color, alpha = 0.75)
+
+        # Highlight target point
+        plt.plot([target, target + 1], [time_series[target], predicted[i]],
+                linestyle='--', color='tab:purple', lw = 2)
+        plt.scatter(target, time_series[target], 5, color='tab:purple', marker='o', zorder=2)
+        plt.scatter(target + 1, time_series[target+1], 30, color='tab:purple', marker='D', zorder=2)
+        plt.scatter(target + 1, predicted[i], 75, color='magenta', marker='*', zorder=2)
+
+        plt.title("S-Map forecast\nLag = " + str(lag) + ", E = " + str(E))
         plt.show()
 
     return 0
@@ -252,10 +283,6 @@ def my_simplex_projection(time_series, lag = 1, max_E = 10, show_plots = True):
             nearest_neighbors = np.arange(N)[nearest_neighbors[0:dim+1]]
             min_distance = dist_to_target[nearest_neighbors[0]]
 
-            print("Target: ", target)
-            print("Nearest neighbors: ", nearest_neighbors)
-            print("")
-
             weighted_average = 0
             total_weight = 0
             weights = []
@@ -285,7 +312,7 @@ def my_simplex_projection(time_series, lag = 1, max_E = 10, show_plots = True):
             predictions.append(weighted_average)
 
             # Save weights and KNNs for plotting if this dim is the optimal dim
-            if target == int((N-2)/2):
+            if target in [3, int((N-2)/2), N-3]:
                 weights_per_dim.append(weights)
                 KNNs_per_dim.append(nearest_neighbors)
                 targets_per_dim.append(target)
@@ -337,16 +364,15 @@ def my_simplex_projection(time_series, lag = 1, max_E = 10, show_plots = True):
 
     plt.show()
 
-    plot_result_in_time_series(time_series,
+    plot_results_simplex(time_series,
                                targets_for_plotting,
                                KNNs_for_plotting,
-                               weights_for_plotting,
                                predicted_for_plotting,
                                lag, optimal_E)
 
     return optimal_E
 
-def my_S_map(time_series, lag = 1, E = 2):
+def my_S_map(time_series, lag = 1, E = 1):
     hankel_matrix = create_hankel_matrix(time_series, lag, E)
     dist_matrix = create_distance_matrix(hankel_matrix)
 
@@ -359,7 +385,15 @@ def my_S_map(time_series, lag = 1, E = 2):
     optimal_theta = 0
     optimal_predictions = []
 
+    targets_for_plotting = []
+    weights_for_plotting = []
+    predictions_for_plotting = []
+
     for theta in range(11):
+
+        targets_per_theta = []
+        weights_per_theta = []
+        predictions_per_theta = []
 
         predictions = []
 
@@ -376,6 +410,11 @@ def my_S_map(time_series, lag = 1, E = 2):
             weights[target] = 0
             next_val = np.dot(weights, np.transpose(hankel_matrix[0, 1:])) / sum(weights)
             predictions.append(next_val)
+
+            if target == int((N-1)/2):
+                targets_per_theta.append(target)
+                weights_per_theta.append(weights)
+                predictions_per_theta.append(predictions[target])
 
         # Pearson Correlation Coefficient
         cor = pearsonr(hankel_matrix[0, 1:], predictions)[0]
@@ -395,6 +434,10 @@ def my_S_map(time_series, lag = 1, E = 2):
             optimal_theta = theta
             optimal_cor = cor
             optimal_predictions = predictions
+
+            targets_for_plotting = targets_per_theta
+            weights_for_plotting = weights_per_theta
+            predictions_for_plotting = predictions_per_theta
 
     # Show figure of performance plots
     plt.figure(0)
@@ -446,6 +489,8 @@ def my_S_map(time_series, lag = 1, E = 2):
 
     plt.show()
 
+    plot_results_smap(time_series, targets_for_plotting, weights_for_plotting, predictions_for_plotting, lag, E)
+
     return(optimal_theta)
 
 #TODO: Make things parallel
@@ -468,7 +513,7 @@ if __name__ == "__main__":
     time_series = time_series[:, 0]
 
     # Plot time series
-    plot_time_series(time_series)
+    #plot_time_series(time_series)
 
     # #plot autocorrelation(time_series)
     # plot_partial_autocorrelation(time_series)
@@ -477,6 +522,6 @@ if __name__ == "__main__":
 
     #time_series = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
 
-    optimal_E = my_simplex_projection(time_series, lag=1, max_E=5, show_plots=False)
-    #my_S_map(time_series, lag=1, E=optimal_E)
+    #optimal_E = my_simplex_projection(time_series, lag=1, max_E=5, show_plots=False)
+    my_S_map(time_series, lag=1, E=4)
 
