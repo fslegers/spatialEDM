@@ -105,9 +105,10 @@ def plot_results_simplex(time_series, targets, nearest_neighbors, predicted, lag
         plt.xlim((min_x, max_x))
 
         # Make shaded background for target history
-        plt.axvspan(target - E*lag + 1.1, target + 1, facecolor='m',alpha=0.2)
-        for j in np.arange(target - E * lag + 1, target - lag + 1):
-            plt.scatter(j, time_series[j], color = 'm', zorder=2)
+        if(lag <= 3):
+            plt.axvspan(target - E*lag + 1.1, target + 1, facecolor='m',alpha=0.2)
+            for j in np.arange(target - E * lag + 1, target - lag + 1):
+                plt.scatter(j, time_series[j], color = 'm', zorder=2)
 
         # Highlight nearest neighbors
         for neighbor in nearest_neighbors[i]:
@@ -115,11 +116,13 @@ def plot_results_simplex(time_series, targets, nearest_neighbors, predicted, lag
                      linestyle='--', color='blue', lw = 2)
             plt.scatter(neighbor, time_series[neighbor], 5, color='blue', marker='o', zorder=2)
             plt.scatter(neighbor + 1, time_series[neighbor + 1], 30, color='blue', marker='D', zorder=2)
-            plt.axvspan(neighbor - E*lag + 1.1, neighbor + 1 - 0.1, facecolor='c',alpha=0.1)
 
-            # Highlight embedding vector
-            for j in range(1, E + 1):
-                plt.scatter(neighbor - j * lag, time_series[neighbor - j * lag], 5, color='blue', marker='o', zorder=2)
+            if(lag <= 3):
+                plt.axvspan(neighbor - E*lag + 1.1, neighbor + 1 - 0.1, facecolor='c',alpha=0.1)
+
+                # Highlight embedding vector
+                for j in range(1, E + 1):
+                    plt.scatter(neighbor - j * lag, time_series[neighbor - j * lag], 5, color='blue', marker='o', zorder=2)
 
         # Highlight target point
         plt.plot([target, target + 1], [time_series[target], predicted[i]],
@@ -129,8 +132,9 @@ def plot_results_simplex(time_series, targets, nearest_neighbors, predicted, lag
         plt.scatter(target + 1, predicted[i], 75, color='magenta', marker='*', zorder=2)
 
         # Highlight embedding vector
-        for j in range(1, E + 1):
-            plt.scatter(target - j * lag, time_series[target - j * lag], 5, color='m', marker='o', zorder=2)
+        if(lag <= 3):
+            for j in range(1, E + 1):
+                plt.scatter(target - j * lag, time_series[target - j * lag], 5, color='m', marker='o', zorder=2)
 
         plt.title(str(E+1) + "NN-forecast\nLag = " + str(lag) + ", E = " + str(E))
         plt.show()
@@ -269,13 +273,13 @@ def my_simplex_projection(time_series, lag = 1, max_E = 10, show_plots = True):
         # for all target points, get dim+1 nearest neighbors and make one-step-ahead prediction (weighted average)
         for target in range(N-1):
 
-            # Exclude target point, its previous value and last point
+            # Exclude target point and last point
             # by temporarily setting their value to infinity
             dist_to_target = dist_matrix[target, :]
             if target == 0:
                 dist_to_target[0] = np.inf
             else:
-                dist_to_target[target-1:target+1] = np.inf
+                dist_to_target[target] = np.inf
                 dist_to_target[N - 1] = np.inf
 
             # Select E + 1 nearest neigbors
@@ -513,15 +517,15 @@ if __name__ == "__main__":
     time_series = time_series[:, 0]
 
     # Plot time series
-    #plot_time_series(time_series)
+    plot_time_series(time_series)
 
-    # #plot autocorrelation(time_series)
-    # plot_partial_autocorrelation(time_series)
+    plot_autocorrelation(time_series)
+    #plot_partial_autocorrelation(time_series)
     # #plot_recurrence(time_series[1:100], delay=8)
     # #make_lag_scatterplot(time_series, lag=8)
 
     #time_series = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
 
-    #optimal_E = my_simplex_projection(time_series, lag=1, max_E=5, show_plots=False)
-    my_S_map(time_series, lag=1, E=4)
+    optimal_E = my_simplex_projection(time_series, lag=8, max_E=10, show_plots=False)
+    my_S_map(time_series, lag=8, E=optimal_E)
 
