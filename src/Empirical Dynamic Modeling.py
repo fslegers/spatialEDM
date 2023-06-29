@@ -80,19 +80,17 @@ def plot_performance_simplex(cor_list, mae_list, rmse_list):
 
 def plot_result_in_time_series(time_series, targets, nearest_neighbors, weights, predicted, lag = 1, E = 1):
 
-    #time_series = create_hankel_matrix(time_series, lag, E)[0,:]
-
-    obs_times = np.arange(1, 1 + len(time_series), 1)
+    time_series = create_hankel_matrix(time_series, lag, E)[0,:]
+    obs_times = np.arange(0, len(time_series), 1)
 
     for i in range(len(targets)):
-
-        target = targets[i] + E*lag # offset
+        target = targets[i]
         plt.plot(obs_times, time_series, color='black', lw=0.5)
         plt.scatter(obs_times, time_series, 5, color='black', marker='o')
 
         # Decide on xlim
-        min_x = max(1, min(target, min(nearest_neighbors[i])) - E*lag - 1)
-        max_x = min(len(time_series), max(target, max(nearest_neighbors[i])) + E*lag + 1)
+        min_x = max(1, min(target, min(nearest_neighbors[i])) - 1)
+        max_x = min(len(time_series), max(target, max(nearest_neighbors[i])) + lag*E + 1)
 
         width = max_x - min_x
         if width <= 50:
@@ -112,27 +110,26 @@ def plot_result_in_time_series(time_series, targets, nearest_neighbors, weights,
 
         # Highlight nearest neighbors
         for neighbor in nearest_neighbors[i]:
-            neighbor = neighbor + E*lag # offset
-            plt.plot([neighbor + 1, neighbor + 1 + lag], [time_series[neighbor], time_series[neighbor + lag]],
+            plt.plot([neighbor, neighbor + lag], [time_series[neighbor], time_series[neighbor + 1]],
                      linestyle='--', color='blue', lw = 2)
-            plt.scatter(neighbor + 1, time_series[neighbor], 30, color='blue', marker='o', zorder=2)
-            plt.scatter(neighbor + 1 + lag, time_series[neighbor + lag], 35, color='blue', marker='D', zorder=2)
+            plt.scatter(neighbor, time_series[neighbor], 30, color='blue', marker='o', zorder=2)
+            plt.scatter(neighbor + 1, time_series[neighbor + 1], 35, color='blue', marker='D', zorder=2)
             #plt.axvspan(neighbor - E*lag + 1.1, neighbor + 1 - 0.1, facecolor='c',alpha=0.1)
 
-            ## Highlight embedding vector
-            #for j in range(1, E + 1):
-            #    plt.scatter(neighbor - j * lag + 1, time_series[neighbor - j * lag], 5, color='blue', marker='o', zorder=2)
+            # Highlight embedding vector
+            for j in range(1, E + 1):
+                plt.scatter(neighbor - j * lag, time_series[neighbor - j * lag], 5, color='blue', marker='o', zorder=2)
 
         # Highlight target point
-        plt.plot([target + 1, target + 1 + lag], [time_series[target], predicted[i]],
+        plt.plot([target, target + 1], [time_series[target], predicted[i]],
                 linestyle='--', color='tab:purple', lw = 2)
-        plt.scatter(target + 1, time_series[target], 30, color='tab:purple', marker='o', zorder=2)
-        plt.scatter(target + 1 + lag, time_series[target + lag], 35, color='tab:purple', marker='D', zorder=2)
-        plt.scatter(target + 1 + lag, predicted[i], 75, color='magenta', marker='*', zorder=2)
+        plt.scatter(target, time_series[target], 30, color='tab:purple', marker='o', zorder=2)
+        plt.scatter(target + 1, time_series[target+1], 35, color='tab:purple', marker='D', zorder=2)
+        plt.scatter(target + 1, predicted[i], 75, color='magenta', marker='*', zorder=2)
 
-        ## Highlight embedding vector
-        #for j in range(1, E + 1):
-        #    plt.scatter(target - j * lag + 1, time_series[target - j * lag], 5, color='m', marker='o', zorder=2)
+        # Highlight embedding vector
+        for j in range(1, E + 1):
+            plt.scatter(target - j * lag, time_series[target - j * lag], 5, color='m', marker='o', zorder=2)
 
         plt.title(str(E+1) + "NN-forecast\nLag = " + str(lag) + ", E = " + str(E))
         plt.show()
@@ -455,8 +452,15 @@ def my_S_map(time_series, lag = 1, E = 2):
 
 if __name__ == "__main__":
     # Sample lorenz trajectory
-    lorenz_trajectory = simulate_lorenz(t_max=1500, noise=0.001)
+    lorenz_trajectory = simulate_lorenz(t_max=2500, noise=0.01)
     lorenz_x = lorenz_trajectory[850:, 0]
+
+    new_lorenz_x = []
+    for i in range(len(lorenz_x)):
+        if i % 10 == 0:
+            new_lorenz_x.append(lorenz_x[i])
+
+    lorenz_x = new_lorenz_x
 
     # Differentiate and standardize
     time_series = np.diff(lorenz_x)
@@ -473,6 +477,6 @@ if __name__ == "__main__":
 
     #time_series = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
 
-    optimal_E = my_simplex_projection(time_series, lag=2, max_E=5, show_plots=False)
+    optimal_E = my_simplex_projection(time_series, lag=1, max_E=5, show_plots=False)
     #my_S_map(time_series, lag=1, E=optimal_E)
 
