@@ -1,12 +1,9 @@
 import math
-
 import matplotlib.cm
 import numpy as np
 from pyEDM import *
-import pandas as pd
 from create_dummy_time_series import *
 from preprocessing import *
-from sklearn import preprocessing
 from scipy.stats import pearsonr
 
 def create_hankel_matrix(time_series, lag = 1, E = 2):
@@ -28,7 +25,7 @@ def create_hankel_matrix(time_series, lag = 1, E = 2):
     # turn list into np.array
     Hankel_matrix = np.stack(Hankel_matrix, axis=0)
 
-    return(Hankel_matrix)
+    return Hankel_matrix
 
 def create_distance_matrix(hankel_matrix):
     N = hankel_matrix.shape[1]
@@ -39,7 +36,7 @@ def create_distance_matrix(hankel_matrix):
             dist_matrix[i, j] = dist
             dist_matrix[j, i] = dist
 
-    return(dist_matrix)
+    return dist_matrix
 
 def plot_performance_simplex(cor_list, mae_list, rmse_list):
     # Show figure of performance plots
@@ -105,7 +102,7 @@ def plot_results_simplex(time_series, targets, nearest_neighbors, predicted, lag
         plt.xlim((min_x, max_x))
 
         # Make shaded background for target history
-        if(lag <= 3):
+        if lag <= 3:
             plt.axvspan(target - E*lag + 1.1, target + 1, facecolor='m',alpha=0.2)
             for j in np.arange(target - E * lag + 1, target - lag + 1):
                 plt.scatter(j, time_series[j], color = 'm', zorder=2)
@@ -117,12 +114,13 @@ def plot_results_simplex(time_series, targets, nearest_neighbors, predicted, lag
             plt.scatter(neighbor, time_series[neighbor], 5, color='blue', marker='o', zorder=2)
             plt.scatter(neighbor + 1, time_series[neighbor + 1], 30, color='blue', marker='D', zorder=2)
 
-            if(lag <= 3):
+            if lag <= 3:
                 plt.axvspan(neighbor - E*lag + 1.1, neighbor + 1 - 0.1, facecolor='c',alpha=0.1)
 
                 # Highlight embedding vector
                 for j in range(1, E + 1):
-                    plt.scatter(neighbor - j * lag, time_series[neighbor - j * lag], 5, color='blue', marker='o', zorder=2)
+                    plt.scatter(neighbor - j * lag, time_series[neighbor - j * lag], 5,
+                                color='blue', marker='o', zorder=2)
 
         # Highlight target point
         plt.plot([target, target + 1], [time_series[target], predicted[i]],
@@ -171,77 +169,10 @@ def plot_results_smap(time_series, targets, weights, predicted, lag, E):
 
     return 0
 
-def simplex_projection(time_series, lag = -1, max_E = 10):
-    """
-    Finds the optimal value for the embedding dimension E by one-step-ahead predictions
-    using E+1 Nearest Neighbors.
-    :return: E, optimal dimension
-    """
-    #Check if time_series is standardized
-    if np.abs(mean(time_series)) > 2e-5 or np.abs(std(time_series)) - 1 > 2e-5:
-        print("standardizing time series...")
-        time_series = preprocessing.scale(time_series)
-
-    # If no observation times are given, add them to time_series
-    if len(np.shape(time_series)) == 1:
-        obs_times = np.arange(1, np.shape(time_series)[0] + 1, 1)
-        time_series = np.column_stack((obs_times, time_series))
-
-    # Turn time_series into pandas dataframe
-    df = pd.DataFrame(time_series, columns = ["t", "x"])
-
-    # Divide time series in training (60%), and test set (40%)
-    length = len(df)
-    training_set = "1 " + str(floor(0.6 * length))
-    test_set = str(floor(0.6 * length) + 1) + " " + str(length)
-
-    # Plot and return prediction skill rho for each embedding via Simplex
-    rho_per_E = EmbedDimension(dataFrame = df, maxE = max_E, tau = -np.abs(lag),
-                               lib = training_set, pred = test_set, columns = "x")
-
-    # Find the optimal E
-    optimal_param = rho_per_E.loc[rho_per_E['rho'].idxmax()]
-    print("Optimal embedding dimension E: ", str(optimal_param["E"]),
-          " ( rho = ", str(optimal_param["rho"]), ").")
-
-    return(optimal_param["E"])
-
-def S_map(time_series, obs_time, lag=-1, E=10):
-    """
-    Evaluates Smap prediction skill for different values of localization parameter theta)
-    :param time_series:
-    :param lag:
-    :param E:
-    :return:
-    """
-    # TODO
-    # Add check if time_series is standardized
-
-    # If no observation times are given, add them to time_series
-    if len(np.shape(time_series)) == 1:
-        obs_times = np.arange(1, np.shape(time_series)[0] + 1, 1)
-        time_series = np.column_stack((obs_times, time_series))
-
-    # Turn time_series into pandas dataframe (column vector)
-    df = pd.DataFrame(time_series, columns=["t", "x"])
-
-    # Divide time series in training (60%), and test set (40%)
-    length = len(df)
-    training_set = "1 " + str(floor(0.6 * length))
-    test_set = str(floor(0.6 * length) + 1) + " " + str(length)
-
-    # Evaluate SMap prediction skill for localization parameter theta
-    rho_per_theta = PredictNonlinear(dataFrame=df, E=E, tau=-np.abs(lag),
-                                     lib=training_set, pred=test_set, columns="x", embedded=False)
-
-    return (rho_per_theta)
-
-def my_simplex_projection(time_series, lag = 1, max_E = 10, show_plots = True):
+def my_simplex_projection(time_series, lag = 1, max_E = 10, method = "standard"):
     """
     Simplex projecting with leave-one-out cross validation. Finds an optimal embedding dimension E that maximizes the
     correlation coefficient between predicted and observed values.
-    :param max_E:
-    :param show_plots: if True, shows a scatter plot of predicted vs. observed values for the optimal E.
     """
 
     # Things to keep track of for plotting
@@ -256,11 +187,38 @@ def my_simplex_projection(time_series, lag = 1, max_E = 10, show_plots = True):
     # Things to keep track of for finding optimal E
     optimal_cor = 0
     optimal_predictions = []
+    optimal_targets = []
 
     # For each dimension E
     for dim in range(1, max_E + 1):
-        hankel_matrix = create_hankel_matrix(time_series, lag, dim)
-        dist_matrix = create_distance_matrix(hankel_matrix)
+
+        if method == "standard":
+            # time_series should contain a single time series
+            if type(time_series[0]) == list:
+                print("More than one time series has been given to standard simplex projection. Proceeding with Fleurs version.")
+                method = "fleur"
+            else:
+                hankel_matrix = create_hankel_matrix(time_series, lag, dim)
+                dist_matrix = create_distance_matrix(hankel_matrix)
+
+        if method == "fleur":
+            targets = list()
+            offset = 1
+            hankel_matrix = np.array([]).reshape(dim+1, 0)
+            for i in range(len(time_series)):
+                hankel_matrix_i = create_hankel_matrix(time_series[i], lag, dim)
+                N_i = hankel_matrix_i.shape[1]
+                targets = targets + list(range(offset, offset + N_i - 1))
+                offset += N_i
+                hankel_matrix = np.hstack((hankel_matrix, hankel_matrix_i))
+
+            dist_matrix = create_distance_matrix(hankel_matrix)
+            # set distances to last values of a time series to infinity
+            offset = 0
+            for i in range(len(time_series)):
+                index = offset + len(time_series[i]) - dim*lag - 1
+                offset = index + 1
+                dist_matrix[:, index] = np.inf
 
         predictions = []
         N = hankel_matrix.shape[1]
@@ -271,7 +229,10 @@ def my_simplex_projection(time_series, lag = 1, max_E = 10, show_plots = True):
         predicted_per_dim = []
 
         # for all target points, get dim+1 nearest neighbors and make one-step-ahead prediction (weighted average)
-        for target in range(N-1):
+        if method == 'standard':
+            targets = range(N-1)
+
+        for target in targets:
 
             # Exclude target point and last point
             # by temporarily setting their value to infinity
@@ -280,6 +241,7 @@ def my_simplex_projection(time_series, lag = 1, max_E = 10, show_plots = True):
                 dist_to_target[0] = np.inf
             else:
                 dist_to_target[target] = np.inf
+            if method == 'standard':
                 dist_to_target[N - 1] = np.inf
 
             # Select E + 1 nearest neigbors
@@ -325,15 +287,22 @@ def my_simplex_projection(time_series, lag = 1, max_E = 10, show_plots = True):
             #TODO: in book, they have a minimum weight of 0.000001 (why?)
 
         # Pearson Correlation Coefficient
-        cor = pearsonr(hankel_matrix[0, 1:], predictions)[0]
+        if method == 'standard':
+            observations = hankel_matrix[0, 1:]
+        elif method == 'fleur':
+            observations = []
+            for target in targets:
+                observations.append(hankel_matrix[0, target])
+
+        cor = pearsonr(observations, predictions)[0]
         cor_list.append(cor)
 
         # Mean Absolute Error
-        mae = mean(abs(np.subtract(hankel_matrix[0, 1:], predictions)))
+        mae = mean(abs(np.subtract(observations, predictions)))
         mae_list.append(mae)
 
         # Root Mean Squared Error
-        mse = mean(np.square(np.subtract(hankel_matrix[0, 1:], predictions)))
+        mse = mean(np.square(np.subtract(observations, predictions)))
         rmse = math.sqrt(mse)
         rmse_list.append(rmse)
 
@@ -341,6 +310,7 @@ def my_simplex_projection(time_series, lag = 1, max_E = 10, show_plots = True):
             optimal_cor = cor
             optimal_predictions = predictions
             optimal_E = dim
+            optimal_targets = targets
 
             weights_for_plotting = weights_per_dim
             KNNs_for_plotting = KNNs_per_dim
@@ -350,9 +320,23 @@ def my_simplex_projection(time_series, lag = 1, max_E = 10, show_plots = True):
     plot_performance_simplex(cor_list, mae_list, rmse_list)
 
     # Plot predicted values against actual values for optimal E
-    hankel_matrix = create_hankel_matrix(time_series, lag, E=optimal_E)
-    xmin = min(min(optimal_predictions), min(hankel_matrix[0, 1:]))
-    xmax = max(max(optimal_predictions), max(hankel_matrix[0, 1:]))
+    if method == 'standard':
+        hankel_matrix = create_hankel_matrix(time_series, lag, E=optimal_E)
+        observations = hankel_matrix[0, 1:]
+
+    elif method == 'fleur':
+        hankel_matrix = np.array([]).reshape(optimal_E + 1, 0)
+        for i in range(len(time_series)):
+            hankel_matrix_i = create_hankel_matrix(time_series[i], lag, E=optimal_E)
+            print(np.shape(hankel_matrix_i)[1])
+            hankel_matrix = np.hstack((hankel_matrix, hankel_matrix_i))
+
+        observations = []
+        for target in optimal_targets:
+            observations.append(hankel_matrix[0, target])
+
+    xmin = min(min(optimal_predictions), min(observations))
+    xmax = max(max(optimal_predictions), max(observations))
 
     xmin = xmin - 0.1 * np.abs(xmin)
     xmax = xmax + 0.1 * np.abs(xmax)
@@ -360,7 +344,7 @@ def my_simplex_projection(time_series, lag = 1, max_E = 10, show_plots = True):
     plt.ylim((xmin, xmax))
 
     plt.plot([xmin, xmax], [xmin, xmax], color='black')
-    plt.scatter(hankel_matrix[0, 1:], optimal_predictions, color='black')
+    plt.scatter(observations, optimal_predictions, color='black')
 
     plt.xlabel("Observed values")
     plt.ylabel("Predicted values")
@@ -368,11 +352,12 @@ def my_simplex_projection(time_series, lag = 1, max_E = 10, show_plots = True):
 
     plt.show()
 
-    plot_results_simplex(time_series,
-                               targets_for_plotting,
-                               KNNs_for_plotting,
-                               predicted_for_plotting,
-                               lag, optimal_E)
+    if method == 'standard':
+        plot_results_simplex(time_series,
+                            targets_for_plotting,
+                            KNNs_for_plotting,
+                            predicted_for_plotting,
+                            lag, optimal_E)
 
     return optimal_E
 
@@ -495,9 +480,7 @@ def my_S_map(time_series, lag = 1, E = 1):
 
     plot_results_smap(time_series, targets_for_plotting, weights_for_plotting, predictions_for_plotting, lag, E)
 
-    return(optimal_theta)
-
-#TODO: Make things parallel
+    return optimal_theta
 
 if __name__ == "__main__":
     # Sample lorenz trajectory
@@ -516,16 +499,18 @@ if __name__ == "__main__":
     time_series = standardize_time_series(time_series)
     time_series = time_series[:, 0]
 
+    time_series_a = time_series[1:250]
+    time_series_b = time_series[10:261]
+    time_series_c = time_series[20:272]
+    time_series = [time_series_a, time_series_b, time_series_c]
+
     # Plot time series
-    plot_time_series(time_series)
+    #plot_time_series(time_series)
 
-    plot_autocorrelation(time_series)
+    #plot_autocorrelation(time_series)
     #plot_partial_autocorrelation(time_series)
-    # #plot_recurrence(time_series[1:100], delay=8)
-    # #make_lag_scatterplot(time_series, lag=8)
+    #plot_recurrence(time_series[1:100], delay=8)
+    #make_lag_scatterplot(time_series, lag=8)
 
-    #time_series = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
-
-    optimal_E = my_simplex_projection(time_series, lag=8, max_E=10, show_plots=False)
+    optimal_E = my_simplex_projection(time_series, lag=8, max_E=10, method='fleur')
     my_S_map(time_series, lag=8, E=optimal_E)
-
