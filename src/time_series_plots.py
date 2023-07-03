@@ -48,12 +48,12 @@ def plot_time_series(time_series, obs_times = None, filename = ""):
 
     plt.show()
 
-def plot_embedding(time_series, E = 3, lag = 1, filename = ""):
-    if(E <= 1 or E > 3):
+def plot_embedding(time_series, E = 2, lag = 1, filename = ""):
+    if(E <= 1 or E > 2):
         print("Cannot plot embedding of dimension ", str(E))
         return 0
 
-    if(E == 2):
+    if(E == 1):
         x = time_series
         y = np.roll(x, -lag)
 
@@ -75,7 +75,8 @@ def plot_embedding(time_series, E = 3, lag = 1, filename = ""):
 
         mlab.show()
 
-        mlab.savefig(filename = "plot_embedding_" + filename)
+        if filename != "":
+            mlab.savefig(filename = "plot_embedding_" + filename)
 
         mlab.close()
 
@@ -148,12 +149,16 @@ def plot_autocorrelation(time_series, filename = ""):
     i = 1
     print('In autocorrelation function:')
     min_corr = min(abs(auto_correlations))
+
+    optimal_lag = 1
     while(i < len(time_series)):
-        if auto_correlations[i]  >= min_corr - 0.05 and auto_correlations[i] <= min_corr + 0.05:
+        if auto_correlations[i]  >= min_corr - 0.1 and auto_correlations[i] <= min_corr + 0.1:
             print("first minimum value at lag ", i)
+            optimal_lag = i
             break
         if auto_correlations[i] <= 0.1:
             print('first small value at lag ', i)
+            optimal_lag = i
             break
         i += 1
 
@@ -162,6 +167,8 @@ def plot_autocorrelation(time_series, filename = ""):
         plt.savefig("../results/figures/plot_acf_" + filename)
 
     plt.show()
+
+    return optimal_lag
 
 def plot_partial_autocorrelation(time_series, filename = ""):
     """
