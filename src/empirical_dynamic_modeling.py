@@ -361,9 +361,37 @@ def my_simplex_projection(time_series, lag = 1, max_E = 10, method = "standard")
 
     return optimal_E
 
-def my_S_map(time_series, lag = 1, E = 1):
-    hankel_matrix = create_hankel_matrix(time_series, lag, E)
-    dist_matrix = create_distance_matrix(hankel_matrix)
+def my_S_map(time_series, lag = 1, E = 1, method = "standard"):
+
+    # Create Hankel matrix and Distance Matrix
+    if method == "standard":
+        # time_series should contain a single time series
+        if type(time_series[0]) == list or type(time_series[0]) == np.ndarray:
+            print(
+                "More than one time series has been given to standard simplex projection. Proceeding with Fleurs version.")
+            method = "fleur"
+        else:
+            hankel_matrix = create_hankel_matrix(time_series, lag, E)
+            dist_matrix = create_distance_matrix(hankel_matrix)
+            targets = range(hankel_matrix.shape[1] - 1)
+    if method == "fleur":
+        targets = list()
+        offset = 1
+        hankel_matrix = np.array([]).reshape(E + 1, 0)
+        for i in range(len(time_series)):
+            hankel_matrix_i = create_hankel_matrix(time_series[i], lag, E)
+            N_i = hankel_matrix_i.shape[1]
+            targets = targets + list(range(offset, offset + N_i - 1))
+            offset += N_i
+            hankel_matrix = np.hstack((hankel_matrix, hankel_matrix_i))
+
+        dist_matrix = create_distance_matrix(hankel_matrix)
+        # set distances to last values of a time series to infinity
+        offset = 0
+        for i in range(len(time_series)):
+            index = offset + len(time_series[i]) - E * lag - 1
+            offset = index + 1
+            dist_matrix[:, index] = np.inf
 
     N = hankel_matrix.shape[1]
     cor_list = []
@@ -383,38 +411,49 @@ def my_S_map(time_series, lag = 1, E = 1):
         targets_per_theta = []
         weights_per_theta = []
         predictions_per_theta = []
-
         predictions = []
 
         # Make a one-step-ahead prediction for all points in state space
         # except the last observed point
-        for target in range(N-1):
-            d_m = mean(np.concatenate((dist_matrix[target, :target], dist_matrix[target, target+1:-1])))
+        for target in range(len(targets)):
+            dist_matrix_without_inf = dist_matrix[target, :]
+            dist_matrix_without_inf = dist_matrix_without_inf[dist_matrix_without_inf < np.inf]
+            d_m = mean(dist_matrix_without_inf)
 
             if d_m == 0:
+                #TODO: work out this scenario
                 print('Distance to all points is zero.')
                 return 0
 
             weights = np.exp(-theta * dist_matrix[target, :-1] / d_m)
+            weights[dist_matrix[target, :-1] == np.inf] = 0
             weights[target] = 0
             next_val = np.dot(weights, np.transpose(hankel_matrix[0, 1:])) / sum(weights)
             predictions.append(next_val)
 
-            if target == int((N-1)/2):
+            if target in [targets[2], targets[int(len(targets)/2)], targets[len(targets) - 2]]:
                 targets_per_theta.append(target)
                 weights_per_theta.append(weights)
                 predictions_per_theta.append(predictions[target])
 
         # Pearson Correlation Coefficient
-        cor = pearsonr(hankel_matrix[0, 1:], predictions)[0]
+        if method == 'standard':
+            observations = hankel_matrix[0, 1:]
+        elif method == 'fleur':
+            observations = []
+            for target in targets:
+                observations.append(hankel_matrix[0, target])
+
+        # Pearson Correlation Coefficient
+        cor = pearsonr(observations, predictions)[0]
         cor_list.append(cor)
 
         # Mean Absolute Error
-        mae = mean(abs(np.subtract(hankel_matrix[0, 1:], predictions)))
+        mae = mean(abs(np.subtract(observations, predictions)))
         mae_list.append(mae)
 
         # Root Mean Squared Error
-        mse = mean(np.square(np.subtract(hankel_matrix[0, 1:], predictions)))
+        mse = mean(np.square(np.subtract(observations, predictions)))
         rmse = math.sqrt(mse)
         rmse_list.append(rmse)
 
@@ -461,8 +500,13 @@ def my_S_map(time_series, lag = 1, E = 1):
 
     # Plot predicted values against actual values for optimal theta
     plt.figure(1)
-    xmin = min(min(optimal_predictions), min(hankel_matrix[0, 1:]))
-    xmax = max(max(optimal_predictions), max(hankel_matrix[0, 1:]))
+    observations = []
+
+    for target in targets:
+        observations.append(hankel_matrix[0,target])
+
+    xmin = min(min(optimal_predictions), min(observations))
+    xmax = max(max(optimal_predictions), max(observations))
 
     xmin = xmin - 0.1 * np.abs(xmin)
     xmax = xmax + 0.1 * np.abs(xmax)
@@ -470,7 +514,7 @@ def my_S_map(time_series, lag = 1, E = 1):
     plt.ylim((xmin, xmax))
 
     plt.plot([xmin, xmax], [xmin, xmax], color='black')
-    plt.scatter(hankel_matrix[0, 1:], optimal_predictions, color='black')
+    plt.scatter(observations, optimal_predictions, color='black')
 
     plt.xlabel("Observed values")
     plt.ylabel("Predicted values")
@@ -478,7 +522,8 @@ def my_S_map(time_series, lag = 1, E = 1):
 
     plt.show()
 
-    plot_results_smap(time_series, targets_for_plotting, weights_for_plotting, predictions_for_plotting, lag, E)
+    if method == 'standard':
+        plot_results_smap(time_series, targets_for_plotting, weights_for_plotting, predictions_for_plotting, lag, E)
 
     return optimal_theta
 
