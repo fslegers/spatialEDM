@@ -1,5 +1,6 @@
 from empirical_dynamic_modeling import *
 import pandas as pd
+import random
 
 if __name__ == "__main__":
 
@@ -67,15 +68,29 @@ if __name__ == "__main__":
             print("Site " + str(location) + " is empty.")
 
     # TODO: this is where I left off
-    multivariate_ts = []
-    for site in pd.unique(dt1.Location):
-        temp = dt1[(dt1.Taxonomy == selected_species) & (dt1.Location == site)]
-        time_series = dt1[(dt1.Taxonomy == selected_species) & (dt1.Location == site)].Count.values
-        try:
-            multivariate_ts.append(time_series)
-        except:
-            print("Species " + str(selected_species) + " not found at " + str(site))
-    print("Finished with species " + str(selected_species))
+
+    # Make some plots to get an idea of what is going on
+    locs_to_plot = random.choices(pd.unique(df_species.Location), k=20)
+
+    for loc in locs_to_plot:
+        time_series = (df_species[df_species['Location'] == loc].Count).values
+        observation_times = df_species[df_species['Location'] == loc].Year.values
+        observation_times = pd.to_numeric(observation_times, errors='coerce')
+        plot_time_series(time_series, obs_times=observation_times)
+
+    for site in pd.unique(df_species.Site):
+        for habitat in pd.unique(df_species[df_species['Site'] == site].Habitat):
+            df_temp = df_species[(df_species.Site == site) & (df_species.Habitat == habitat)]
+
+    # site = 1
+    # for  in pd.unique(df_species.Location):
+    #     temp = dt1[(dt1.Taxonomy == selected_species) & (dt1.Location == site)]
+    #     time_series = dt1[(dt1.Taxonomy == selected_species) & (dt1.Location == site)].Count.values
+    #     try:
+    #         multivariate_ts.append(time_series)
+    #     except:
+    #         print("Species " + str(selected_species) + " not found at " + str(site))
+    # print("Finished with species " + str(selected_species))
 
 
 

@@ -169,6 +169,7 @@ def plot_results_smap(time_series, targets, weights, predicted, lag, E):
 
     return 0
 
+#TODO: dont consider any point that has the target in its embedding vector
 def my_simplex_projection(time_series, lag = 1, max_E = 10, method = "standard"):
     """
     Simplex projecting with leave-one-out cross validation. Finds an optimal embedding dimension E that maximizes the
@@ -361,6 +362,8 @@ def my_simplex_projection(time_series, lag = 1, max_E = 10, method = "standard")
 
     return optimal_E
 
+#TODO: dont consider any point that has the target in its embedding vector
+#TODO: add singular value decomposition?
 def my_S_map(time_series, lag = 1, E = 1, method = "standard"):
 
     # Create Hankel matrix and Distance Matrix
