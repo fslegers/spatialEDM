@@ -169,7 +169,8 @@ def plot_results_smap(time_series, targets, weights, predicted, lag, E):
 
     return 0
 
-#TODO: dont consider any point that has the target in its embedding vector
+#TODO: dont consider any point that has the target in its embedding vector?
+#TODO: p-step ahead prediction
 def my_simplex_projection(time_series, lag = 1, max_E = 10, method = "standard"):
     """
     Simplex projecting with leave-one-out cross validation. Finds an optimal embedding dimension E that maximizes the
@@ -364,6 +365,7 @@ def my_simplex_projection(time_series, lag = 1, max_E = 10, method = "standard")
 
 #TODO: dont consider any point that has the target in its embedding vector
 #TODO: add singular value decomposition?
+#TODO: p-step ahead predictions
 def my_S_map(time_series, lag = 1, E = 1, method = "standard"):
 
     # Create Hankel matrix and Distance Matrix
@@ -419,19 +421,41 @@ def my_S_map(time_series, lag = 1, E = 1, method = "standard"):
         # Make a one-step-ahead prediction for all points in state space
         # except the last observed point
         for target in range(len(targets)):
-            dist_matrix_without_inf = dist_matrix[target, :]
-            dist_matrix_without_inf = dist_matrix_without_inf[dist_matrix_without_inf < np.inf]
-            d_m = mean(dist_matrix_without_inf)
+            distances = dist_matrix[target, :]
+            distances[target] = np.inf
+            distances_no_inf = distances[distances < np.inf]
+
 
             if d_m == 0:
                 #TODO: work out this scenario
                 print('Distance to all points is zero.')
                 return 0
 
-            weights = np.exp(-theta * dist_matrix[target, :-1] / d_m)
-            weights[dist_matrix[target, :-1] == np.inf] = 0
-            weights[target] = 0
-            next_val = np.dot(weights, np.transpose(hankel_matrix[0, 1:])) / sum(weights)
+            # Calculate weights
+            mean_dist = mean(distances_no_inf)
+            weights = np.exp(-theta * distances_no_inf / mean_dist)
+            next_vals = Hankel_matrix[0, 1:]
+            next_vals = next_vals[distances < np.inf]
+
+            B = np.multiply(weights, next_vals)
+            A = np.empty((len(weights), 0))
+
+            # Fill A
+            for i in range(1, E+1):
+                prev_value = Hankel_matrix[i, ]
+                prev_value = prev_value[distances < np.inf]
+                new_column = np.multiply(weights, prev_value)
+                A = np.hstack((A, new_column))
+
+            # Calculate coefficients C using the pseudo-inverse of A (via SVD)
+            coeffs = np.linalg.pinv(A) * B
+
+            # Make prediction
+            next_val = Hankel_matrix[:, target] * coeffs
+
+            #weights[dist_matrix[target, :-1] == np.inf] = 0
+            #weights[target] = 0
+            #next_val = np.dot(weights, np.transpose(hankel_matrix[0, 1:])) / sum(weights)
             predictions.append(next_val)
 
             if target in [targets[2], targets[int(len(targets)/2)], targets[len(targets) - 2]]:
@@ -531,26 +555,26 @@ def my_S_map(time_series, lag = 1, E = 1, method = "standard"):
     return optimal_theta
 
 if __name__ == "__main__":
-    # Sample lorenz trajectory
-    lorenz_trajectory = simulate_lorenz(t_max=2500, noise=0.01)
-    lorenz_x = lorenz_trajectory[850:, 0]
-
-    new_lorenz_x = []
-    for i in range(len(lorenz_x)):
-        if i % 10 == 0:
-            new_lorenz_x.append(lorenz_x[i])
-
-    lorenz_x = new_lorenz_x
-
-    # Differentiate and standardize
-    time_series = np.diff(lorenz_x)
-    time_series = standardize_time_series(time_series)
-    time_series = time_series[:, 0]
-
-    time_series_a = time_series[1:250]
-    time_series_b = time_series[10:261]
-    time_series_c = time_series[20:272]
-    time_series = [time_series_a, time_series_b, time_series_c]
+    # # Sample lorenz trajectory
+    # lorenz_trajectory = simulate_lorenz(t_max=2500, noise=0.01)
+    # lorenz_x = lorenz_trajectory[850:, 0]
+    #
+    # new_lorenz_x = []
+    # for i in range(len(lorenz_x)):
+    #     if i % 10 == 0:
+    #         new_lorenz_x.append(lorenz_x[i])
+    #
+    # lorenz_x = new_lorenz_x
+    #
+    # # Differentiate and standardize
+    # time_series = np.diff(lorenz_x)
+    # time_series = standardize_time_series(time_series)
+    # time_series = time_series[:, 0]
+    #
+    # time_series_a = time_series[1:250]
+    # time_series_b = time_series[10:261]
+    # time_series_c = time_series[20:272]
+    # time_series = [time_series_a, time_series_b, time_series_c]
 
     # Plot time series
     #plot_time_series(time_series)
@@ -560,5 +584,9 @@ if __name__ == "__main__":
     #plot_recurrence(time_series[1:100], delay=8)
     #make_lag_scatterplot(time_series, lag=8)
 
-    optimal_E = my_simplex_projection(time_series, lag=8, max_E=10, method='fleur')
-    my_S_map(time_series, lag=8, E=optimal_E)
+    time_series = np.arange(1,100)
+    time_series = time_series/100
+    time_series = np.sin(time_series)
+
+    #optimal_E = my_simplex_projection(time_series, lag=8, max_E=10, method='fleur')
+    my_S_map(time_series, lag=1, E=3)
