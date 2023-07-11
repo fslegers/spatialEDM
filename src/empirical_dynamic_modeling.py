@@ -591,11 +591,11 @@ if __name__ == "__main__":
     time_series = np.diff(lorenz_x)
     time_series = standardize_time_series(time_series)
     time_series = time_series[:, 0]
-    #
-    # time_series_a = time_series[1:250]
-    # time_series_b = time_series[10:261]
-    # time_series_c = time_series[20:272]
-    # time_series = [time_series_a, time_series_b, time_series_c]
+
+    time_series_a = time_series[1:250]
+    time_series_b = time_series[10:261]
+    time_series_c = time_series[20:272]
+    time_series = [time_series_a, time_series_b, time_series_c]
 
     # Plot time series
     #plot_time_series(time_series)
@@ -609,5 +609,5 @@ if __name__ == "__main__":
     # time_series = time_series/100
     # time_series = np.sin(time_series)
 
-    optimal_E = my_simplex_projection(time_series, lag=8, max_E=10)
-    my_S_map(time_series, lag=8, E=optimal_E)
+    optimal_E = my_simplex_projection(time_series, lag=8, max_E=10, method="fleur")
+    my_S_map(time_series, lag=8, E=optimal_E, method="fleur")
