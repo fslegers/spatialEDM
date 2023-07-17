@@ -11,26 +11,27 @@ from src.create_dummy_time_series import simulate_lorenz
 from src.time_series_plots import plot_time_series
 
 
-def create_hankel_matrix(time_series, lag = 1, E = 2):
+def create_hankel_matrix(ts, lag=1, E=2):
     """
     Returns the first E+1 rows of the Hankel-matrix of a time series. Each consecutive row contains
     the time series shifted backwards lag time steps.
     """
-    Hankel_matrix = []
+    hankel_matrix = []
 
     for i in range(E + 1):
         if i == 0:
             # Add original time series
-            delayed_time_series = time_series[(E - i) * lag:]
+            delayed_ts = ts[(E - i) * lag:]
         else:
             # Add time series that is shifted i times
-            delayed_time_series = time_series[(E - i) * lag:-i * lag]
-        Hankel_matrix.append(delayed_time_series)
+            delayed_ts = ts[(E - i) * lag:-i * lag]
+        hankel_matrix.append(delayed_ts)
 
     # turn list into np.array
-    Hankel_matrix = np.stack(Hankel_matrix, axis=0)
+    hankel_matrix = np.stack(hankel_matrix, axis=0)
 
-    return Hankel_matrix
+    return hankel_matrix
+
 
 def create_distance_matrix(hankel_matrix):
     """
@@ -38,15 +39,20 @@ def create_distance_matrix(hankel_matrix):
     """
     N = hankel_matrix.shape[1]
     dist_matrix = np.zeros((N, N))
-    for i in range(N):
-        for j in range(i, N):
-            dist = np.linalg.norm((hankel_matrix[:, i] - hankel_matrix[:, j]))
-            dist_matrix[i, j] = dist
-            dist_matrix[j, i] = dist
+    for p in range(N):
+        for q in range(p, N):
+            dist = np.linalg.norm((hankel_matrix[:, p] - hankel_matrix[:, q]))
+            dist_matrix[p, q] = dist
+            dist_matrix[q, p] = dist
 
     return dist_matrix
 
+
 def plot_performance_simplex(cor_list, mae_list, rmse_list):
+    """
+    Plots the correlation coefficient, mean absolute error (MAE) and
+    root mean square error (RMSE) of Simplex for each dimension E.
+    """
     # Show figure of performance plots
     fig, axs = plt.subplots(3, sharex=True)
     fig.suptitle('Performance measures per E')
@@ -84,93 +90,98 @@ def plot_performance_simplex(cor_list, mae_list, rmse_list):
     print("Lowest MAE for E = :", str(np.argmin(mae_list) + 1) + " (" + str(min(mae_list)) + ")")
     print("Lowest RMSE for E = :", str(np.argmin(rmse_list) + 1) + " (" + str(min(rmse_list)) + ")")
 
-def plot_results_simplex(time_series, targets, nearest_neighbors, predicted, lag, E):
-    #TODO: something with weights
-    time_series = create_hankel_matrix(time_series, lag, E)[0,:]
-    obs_times = np.arange(0, len(time_series), 1)
 
-    for i in range(len(targets)):
-        target = targets[i]
-        plt.plot(obs_times, time_series, color='black', lw=0.5)
-        plt.scatter(obs_times, time_series, 5, color='black', marker='o')
+def plot_results_simplex(ts, targets, nearest_neighbors, predicted, lag, E):
+    """
+    Shows which neighbors were used in the prediction of the target points "targets" by the Simplex
+    method with dimension E. Plots both the predicted as the observed values of targets next value.
+    """
+    # TODO: something with weights
+    ts = create_hankel_matrix(ts, lag, E)[0, :]
+    obs_times = np.arange(0, len(ts), 1)
+
+    for j in range(len(targets)):
+        target = targets[j]
+        plt.plot(obs_times, ts, color='black', lw=0.5)
+        plt.scatter(obs_times, ts, 5, color='black', marker='o')
 
         # Decide on xlim
-        min_x = max(1, min(target, min(nearest_neighbors[i])) - E*lag - 1)
-        max_x = min(len(time_series), max(target, max(nearest_neighbors[i])) + lag*E + 1)
+        min_x = max(1, min(target, min(nearest_neighbors[j])) - E * lag - 1)
+        max_x = min(len(ts), max(target, max(nearest_neighbors[j])) + lag * E + 1)
 
         width = max_x - min_x
         if width <= 50:
-            min_x = max(1, min_x - int((50 - width)/2.0)) - 1
-            max_x = min(len(time_series) + 1, max_x + int((50 - width)/2.0)) + 1
+            min_x = max(1, min_x - int((50 - width) / 2.0)) - 1
+            max_x = min(len(ts) + 1, max_x + int((50 - width) / 2.0)) + 1
 
         else:
             min_x = max(1, min_x - 10)
-            max_x = min(len(time_series) + 1, max_x + 10)
+            max_x = min(len(ts) + 1, max_x + 10)
 
         plt.xlim((min_x, max_x))
 
         # Make shaded background for target history
         if lag <= 3:
-            plt.axvspan(target - E*lag + 1.1, target + 1, facecolor='m',alpha=0.2)
+            plt.axvspan(target - E * lag + 1.1, target + 1, facecolor='m', alpha=0.2)
             for j in np.arange(target - E * lag + 1, target - lag + 1):
-                plt.scatter(j, time_series[j], color = 'm', zorder=2)
+                plt.scatter(j, ts[j], color='m', zorder=2)
 
         # Highlight nearest neighbors
-        for neighbor in nearest_neighbors[i]:
-            plt.plot([neighbor, neighbor + 1], [time_series[neighbor], time_series[neighbor + 1]],
-                     linestyle='--', color='blue', lw = 2)
-            plt.scatter(neighbor, time_series[neighbor], 5, color='blue', marker='o', zorder=2)
-            plt.scatter(neighbor + 1, time_series[neighbor + 1], 30, color='blue', marker='D', zorder=2)
+        for neighbor in nearest_neighbors[j]:
+            plt.plot([neighbor, neighbor + 1], [ts[neighbor], ts[neighbor + 1]],
+                     linestyle='--', color='blue', lw=2)
+            plt.scatter(neighbor, ts[neighbor], 5, color='blue', marker='o', zorder=2)
+            plt.scatter(neighbor + 1, ts[neighbor + 1], 30, color='blue', marker='D', zorder=2)
 
             if lag <= 3:
-                plt.axvspan(neighbor - E*lag + 1.1, neighbor + 1 - 0.1, facecolor='c',alpha=0.1)
+                plt.axvspan(neighbor - E * lag + 1.1, neighbor + 1 - 0.1, facecolor='c', alpha=0.1)
 
                 # Highlight embedding vector
                 for j in range(1, E + 1):
-                    plt.scatter(neighbor - j * lag, time_series[neighbor - j * lag], 5,
+                    plt.scatter(neighbor - j * lag, ts[neighbor - j * lag], 5,
                                 color='blue', marker='o', zorder=2)
 
         # Highlight target point
-        plt.plot([target, target + 1], [time_series[target], predicted[i]],
-                linestyle='--', color='tab:purple', lw = 2)
-        plt.scatter(target, time_series[target], 5, color='tab:purple', marker='o', zorder=2)
-        plt.scatter(target + 1, time_series[target+1], 30, color='tab:purple', marker='D', zorder=2)
-        plt.scatter(target + 1, predicted[i], 75, color='magenta', marker='*', zorder=2)
+        plt.plot([target, target + 1], [ts[target], predicted[j]],
+                 linestyle='--', color='tab:purple', lw=2)
+        plt.scatter(target, ts[target], 5, color='tab:purple', marker='o', zorder=2)
+        plt.scatter(target + 1, ts[target + 1], 30, color='tab:purple', marker='D', zorder=2)
+        plt.scatter(target + 1, predicted[j], 75, color='magenta', marker='*', zorder=2)
 
         # Highlight embedding vector
-        if(lag <= 3):
-            for j in range(1, E + 1):
-                plt.scatter(target - j * lag, time_series[target - j * lag], 5, color='m', marker='o', zorder=2)
+        if lag <= 3:
+            for q in range(1, E + 1):
+                plt.scatter(target - q * lag, ts[target - q * lag], 5, color='m', marker='o', zorder=2)
 
-        plt.title(str(E+1) + "NN-forecast\nLag = " + str(lag) + ", E = " + str(E))
+        plt.title(str(E + 1) + "NN-forecast\nLag = " + str(lag) + ", E = " + str(E))
         plt.show()
 
     return 0
 
-def plot_results_smap(time_series, targets, weights, predicted, distances, lag, E):
 
-    time_series = create_hankel_matrix(time_series, lag, E)[0,:]
-    obs_times = np.arange(0, len(time_series), 1)
+def plot_results_smap(ts, targets, weights, predicted, distances, lag, E):
+    ts = create_hankel_matrix(ts, lag, E)[0, :]
+    obs_times = np.arange(0, len(ts), 1)
 
-    #indices to step through colormap
+    # indices to step through colormap
     cmap = matplotlib.cm.get_cmap('Blues')
 
     for i in range(len(targets)):
         target = targets[i]
-        plt.plot(obs_times, time_series, color='black', lw=0.5)
-        plt.scatter(obs_times, time_series, 5, color='black', marker='o')
+        plt.plot(obs_times, ts, color='black', lw=0.5)
+        plt.scatter(obs_times, ts, 5, color='black', marker='o')
 
         # Highlight nearest neighbors
-        neighborhood = list(itertools.compress(range(len(time_series) - 1), distances[target,:-1]))
+        neighborhood = list(itertools.compress(range(len(ts) - 1), distances[target, :-1]))
         for neighbor in range(len(neighborhood)):
-            color = cmap(0.05 + 0.95*(weights[i][neighbor] - min(weights[i]))/(max(weights[i]) - min(weights[i])))
-            plt.axvspan(neighborhood[neighbor] -0.5, neighborhood[neighbor] + 0.5, facecolor=color, alpha = 0.75)
+            color = cmap(0.05 + 0.95 * (weights[i][neighbor] - min(weights[i])) / (max(weights[i]) - min(weights[i])))
+            plt.axvspan(neighborhood[neighbor] - 0.5, neighborhood[neighbor] + 0.5, facecolor=color, alpha=0.75)
 
         # Highlight target point
-        plt.plot([target, target + 1], [time_series[target], predicted[i]],
-                linestyle='--', color='tab:purple', lw = 2)
-        plt.scatter(target, time_series[target], 5, color='tab:purple', marker='o', zorder=2)
-        plt.scatter(target + 1, time_series[target+1], 30, color='tab:purple', marker='D', zorder=2)
+        plt.plot([target, target + 1], [ts[target], predicted[i]],
+                 linestyle='--', color='tab:purple', lw=2)
+        plt.scatter(target, ts[target], 5, color='tab:purple', marker='o', zorder=2)
+        plt.scatter(target + 1, ts[target + 1], 30, color='tab:purple', marker='D', zorder=2)
         plt.scatter(target + 1, predicted[i], 75, color='magenta', marker='*', zorder=2)
 
         plt.title("S-Map forecast\nLag = " + str(lag) + ", E = " + str(E))
@@ -178,9 +189,10 @@ def plot_results_smap(time_series, targets, weights, predicted, distances, lag, 
 
     return 0
 
-#TODO: dont consider any point that has the target in its embedding vector?
-#TODO: p-step ahead prediction
-def my_simplex_projection(time_series, lag = 1, max_E = 10, method = "standard"):
+
+# TODO: dont consider any point that has the target in its embedding vector?
+# TODO: p-step ahead prediction
+def my_simplex_projection(ts, lag=1, max_E=10, method="standard"):
     """
     Simplex projecting with leave-one-out cross validation. Finds an optimal embedding dimension E that maximizes the
     correlation coefficient between predicted and observed values.
@@ -205,19 +217,20 @@ def my_simplex_projection(time_series, lag = 1, max_E = 10, method = "standard")
 
         if method == "standard":
             # time_series should contain a single time series
-            if type(time_series[0]) == list:
-                print("More than one time series has been given to standard simplex projection. Proceeding with Fleurs version.")
+            if type(ts[0]) == list:
+                print("More than one time series has been given to standard simplex projection. "
+                      "Proceeding with Fleur's version.")
                 method = "fleur"
             else:
-                hankel_matrix = create_hankel_matrix(time_series, lag, dim)
+                hankel_matrix = create_hankel_matrix(ts, lag, dim)
                 dist_matrix = create_distance_matrix(hankel_matrix)
 
         if method == "fleur":
             targets = list()
             offset = 1
-            hankel_matrix = np.array([]).reshape(dim+1, 0)
-            for i in range(len(time_series)):
-                hankel_matrix_i = create_hankel_matrix(time_series[i], lag, dim)
+            hankel_matrix = np.array([]).reshape(dim + 1, 0)
+            for i in range(len(ts)):
+                hankel_matrix_i = create_hankel_matrix(ts[i], lag, dim)
                 N_i = hankel_matrix_i.shape[1]
                 targets = targets + list(range(offset, offset + N_i - 1))
                 offset += N_i
@@ -226,8 +239,8 @@ def my_simplex_projection(time_series, lag = 1, max_E = 10, method = "standard")
             dist_matrix = create_distance_matrix(hankel_matrix)
             # set distances to last values of a time series to infinity
             offset = 0
-            for i in range(len(time_series)):
-                index = offset + len(time_series[i]) - dim*lag - 1
+            for i in range(len(ts)):
+                index = offset + len(ts[i]) - dim * lag - 1
                 offset = index + 1
                 dist_matrix[:, index] = np.inf
 
@@ -241,7 +254,7 @@ def my_simplex_projection(time_series, lag = 1, max_E = 10, method = "standard")
 
         # for all target points, get dim+1 nearest neighbors and make one-step-ahead prediction (weighted average)
         if method == 'standard':
-            targets = range(N-1)
+            targets = range(N - 1)
 
         for target in targets:
 
@@ -257,7 +270,7 @@ def my_simplex_projection(time_series, lag = 1, max_E = 10, method = "standard")
 
             # Select E + 1 nearest neigbors
             nearest_neighbors = np.argpartition(dist_to_target, (0, dim + 2))
-            nearest_neighbors = np.arange(N)[nearest_neighbors[0:dim+1]]
+            nearest_neighbors = np.arange(N)[nearest_neighbors[0:dim + 1]]
             min_distance = dist_to_target[nearest_neighbors[0]]
 
             weighted_average = 0
@@ -279,23 +292,23 @@ def my_simplex_projection(time_series, lag = 1, max_E = 10, method = "standard")
                 for neighbor in nearest_neighbors:
                     # Add next value to weighted average
                     next_val = hankel_matrix[0, neighbor + 1]
-                    weight = np.exp(-dist_to_target[neighbor]/min_distance)
+                    weight = np.exp(-dist_to_target[neighbor] / min_distance)
                     weighted_average += next_val * weight
                     total_weight += weight
                     weights.append(weight)
 
-            weighted_average = weighted_average/total_weight
+            weighted_average = weighted_average / total_weight
 
             predictions.append(weighted_average)
 
             # Save weights and KNNs for plotting if this dim is the optimal dim
-            if target in [3, int((N-2)/2), N-3]:
+            if target in [3, int((N - 2) / 2), N - 3]:
                 weights_per_dim.append(weights)
                 KNNs_per_dim.append(nearest_neighbors)
                 targets_per_dim.append(target)
                 predicted_per_dim.append(weighted_average)
 
-            #TODO: in book, they have a minimum weight of 0.000001 (why?)
+            # TODO: in book, they have a minimum weight of 0.000001 (why?)
 
         # Pearson Correlation Coefficient
         if method == 'standard':
@@ -320,7 +333,7 @@ def my_simplex_projection(time_series, lag = 1, max_E = 10, method = "standard")
         if cor >= optimal_cor:
             optimal_cor = cor
             optimal_predictions = predictions
-            optimal_E = dim
+            optimal_dim = dim
             optimal_targets = targets
 
             weights_for_plotting = weights_per_dim
@@ -332,13 +345,13 @@ def my_simplex_projection(time_series, lag = 1, max_E = 10, method = "standard")
 
     # Plot predicted values against actual values for optimal E
     if method == 'standard':
-        hankel_matrix = create_hankel_matrix(time_series, lag, E=optimal_E)
+        hankel_matrix = create_hankel_matrix(ts, lag, E=optimal_dim)
         observations = hankel_matrix[0, 1:]
 
     elif method == 'fleur':
-        hankel_matrix = np.array([]).reshape(optimal_E + 1, 0)
-        for i in range(len(time_series)):
-            hankel_matrix_i = create_hankel_matrix(time_series[i], lag, E=optimal_E)
+        hankel_matrix = np.array([]).reshape(optimal_dim + 1, 0)
+        for i in range(len(ts)):
+            hankel_matrix_i = create_hankel_matrix(ts[i], lag, E=optimal_dim)
             print(np.shape(hankel_matrix_i)[1])
             hankel_matrix = np.hstack((hankel_matrix, hankel_matrix_i))
 
@@ -364,36 +377,36 @@ def my_simplex_projection(time_series, lag = 1, max_E = 10, method = "standard")
     plt.show()
 
     if method == 'standard':
-        plot_results_simplex(time_series,
-                            targets_for_plotting,
-                            KNNs_for_plotting,
-                            predicted_for_plotting,
-                            lag, optimal_E)
+        plot_results_simplex(ts,
+                             targets_for_plotting,
+                             KNNs_for_plotting,
+                             predicted_for_plotting,
+                             lag, optimal_dim)
 
-    return optimal_E
+    return optimal_dim
 
-#TODO: dont consider any point that has the target in its embedding vector
-#TODO: add singular value decomposition?
-#TODO: p-step ahead predictions
-def my_S_map(time_series, lag = 1, E = 1, method = "standard"):
 
+# TODO: dont consider any point that has the target in its embedding vector
+# TODO: add singular value decomposition?
+# TODO: p-step ahead predictions
+def my_S_map(ts, lag=1, E=1, method="standard"):
     # Create Hankel matrix and Distance Matrix
     if method == "standard":
         # time_series should contain a single time series
-        if type(time_series[0]) == list or type(time_series[0]) == np.ndarray:
+        if type(ts[0]) == list or type(ts[0]) == np.ndarray:
             print(
                 "More than one time series has been given to standard simplex projection. Proceeding with Fleurs version.")
             method = "fleur"
         else:
-            hankel_matrix = create_hankel_matrix(time_series, lag, E)
+            hankel_matrix = create_hankel_matrix(ts, lag, E)
             dist_matrix = create_distance_matrix(hankel_matrix)
             targets = range(hankel_matrix.shape[1] - 1)
     if method == "fleur":
         targets = list()
         offset = 1
         hankel_matrix = np.array([]).reshape(E + 1, 0)
-        for i in range(len(time_series)):
-            hankel_matrix_i = create_hankel_matrix(time_series[i], lag, E)
+        for i in range(len(ts)):
+            hankel_matrix_i = create_hankel_matrix(ts[i], lag, E)
             N_i = hankel_matrix_i.shape[1]
             targets = targets + list(range(offset, offset + N_i - 1))
             offset += N_i
@@ -402,8 +415,8 @@ def my_S_map(time_series, lag = 1, E = 1, method = "standard"):
         dist_matrix = create_distance_matrix(hankel_matrix)
         # set distances to last values of a time series to infinity
         offset = 0
-        for i in range(len(time_series)):
-            index = offset + len(time_series[i]) - E * lag - 1
+        for i in range(len(ts)):
+            index = offset + len(ts[i]) - E * lag - 1
             offset = index + 1
             dist_matrix[:, index] = np.inf
 
@@ -435,11 +448,11 @@ def my_S_map(time_series, lag = 1, E = 1, method = "standard"):
         # Make a one-step-ahead prediction for all points in state space
         # except the last observed point
         for target in range(len(targets)):
-            distances = dist_matrix[target, :-1] # Exclude last point
-            #distances[target] = np.inf
+            distances = dist_matrix[target, :-1]  # Exclude last point
+            # distances[target] = np.inf
             distances_no_inf = distances[distances < np.inf]
 
-            #if d_m == 0:
+            # if d_m == 0:
             #    #TODO: work out this scenario
             #    print('Distance to all points is zero.')
             #    return 0
@@ -451,10 +464,10 @@ def my_S_map(time_series, lag = 1, E = 1, method = "standard"):
             next_vals = list(itertools.compress(next_vals, distances < np.inf))
 
             B = np.multiply(weights, next_vals)
-            A = np.empty((len(weights), ))
+            A = np.empty((len(weights),))
 
             # Fill A
-            for i in range(1, E+1):
+            for i in range(1, E + 1):
                 prev_value = hankel_matrix[i, :-1]
                 prev_value = list(itertools.compress(prev_value, distances < np.inf))
                 new_column = np.multiply(weights, prev_value)
@@ -467,12 +480,12 @@ def my_S_map(time_series, lag = 1, E = 1, method = "standard"):
             # Make prediction
             next_val = np.matmul(hankel_matrix[:, target], coeffs)
 
-            #weights[dist_matrix[target, :-1] == np.inf] = 0
-            #weights[target] = 0
-            #next_val = np.dot(weights, np.transpose(hankel_matrix[0, 1:])) / sum(weights)
+            # weights[dist_matrix[target, :-1] == np.inf] = 0
+            # weights[target] = 0
+            # next_val = np.dot(weights, np.transpose(hankel_matrix[0, 1:])) / sum(weights)
             predictions.append(next_val)
 
-            if target in [targets[2], targets[int(len(targets)/2)], targets[len(targets) - 2]]:
+            if target in [targets[2], targets[int(len(targets) / 2)], targets[len(targets) - 2]]:
                 targets_per_theta.append(target)
                 weights_per_theta.append(weights)
                 predictions_per_theta.append(predictions[target])
@@ -545,7 +558,7 @@ def my_S_map(time_series, lag = 1, E = 1, method = "standard"):
     observations = []
 
     for target in targets:
-        observations.append(hankel_matrix[0,target])
+        observations.append(hankel_matrix[0, target])
 
     xmin = min(min(optimal_predictions), min(observations))
     xmax = max(max(optimal_predictions), max(observations))
@@ -565,7 +578,7 @@ def my_S_map(time_series, lag = 1, E = 1, method = "standard"):
     plt.show()
 
     if method == 'standard':
-        plot_results_smap(time_series,
+        plot_results_smap(ts,
                           targets_for_plotting,
                           weights_for_plotting,
                           predictions_for_plotting,
@@ -574,6 +587,7 @@ def my_S_map(time_series, lag = 1, E = 1, method = "standard"):
                           E)
 
     return optimal_theta
+
 
 if __name__ == "__main__":
     # Sample lorenz trajectory
@@ -598,12 +612,12 @@ if __name__ == "__main__":
     time_series = [time_series_a, time_series_b, time_series_c]
 
     # Plot time series
-    #plot_time_series(time_series)
+    # plot_time_series(time_series)
 
-    #plot_autocorrelation(time_series)
-    #plot_partial_autocorrelation(time_series)
-    #plot_recurrence(time_series[1:100], delay=8)
-    #make_lag_scatterplot(time_series, lag=8)
+    # plot_autocorrelation(time_series)
+    # plot_partial_autocorrelation(time_series)
+    # plot_recurrence(time_series[1:100], delay=8)
+    # make_lag_scatterplot(time_series, lag=8)
 
     # time_series = np.arange(1,100)
     # time_series = time_series/100
