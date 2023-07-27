@@ -219,13 +219,13 @@ def my_simplex_projection(ts, lag=1, max_E=10, method="standard"):
             # time_series should contain a single time series
             if type(ts[0]) == list:
                 print("More than one time series has been given to standard simplex projection. "
-                      "Proceeding with Fleur's version.")
-                method = "fleur"
+                      "Proceeding with Hsieh's version.")
+                method = "dewdrop"
             else:
                 hankel_matrix = create_hankel_matrix(ts, lag, dim)
                 dist_matrix = create_distance_matrix(hankel_matrix)
 
-        if method == "fleur":
+        if method == "dewdrop":
             targets = list()
             offset = 1
             hankel_matrix = np.array([]).reshape(dim + 1, 0)
@@ -623,5 +623,5 @@ if __name__ == "__main__":
     # time_series = time_series/100
     # time_series = np.sin(time_series)
 
-    optimal_E = my_simplex_projection(time_series, lag=8, max_E=10, method="fleur")
-    my_S_map(time_series, lag=8, E=optimal_E, method="fleur")
+    optimal_E = my_simplex_projection(time_series, lag=8, max_E=10, method="dewdrop")
+    my_S_map(time_series, lag=8, E=optimal_E, method="dewdrop")
