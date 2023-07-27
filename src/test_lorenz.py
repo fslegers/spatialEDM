@@ -1,49 +1,53 @@
+from src.time_series_plots import plot_autocorrelation
 from empirical_dynamic_modeling import *
 import random
 
-from src.time_series_plots import plot_autocorrelation
 
-if __name__ == "__main__":
-
-    n_iter  = 3
-    max_noise = 0.5
-    sparsity = 10 # lower value -> denser dataset
-    which_var = 0 # choose x variable
-    random.seed(123)
+def univariate_simulations(ts_length=100, noise=0.0, step_size=10, n_iter=10):
 
     counter = 0
     while counter <= n_iter:
-        # set parameters
-        x_0 = random.uniform(0, 1)
-        y_0 = random.uniform(0, 1)
-        z_0 = random.uniform(0, 1)
-        noise_iter = np.linspace(0, max_noise, n_iter + 1)[counter]
+        # set initial values
+        x_0 = random.uniform(-20, 20)
+        y_0 = random.uniform(-30, 30)
+        z_0 = random.uniform(0, 50)
+        tau = 1
 
         # sample lorenz attractor
-        lorenz_traj = simulate_lorenz(t_max=2500, noise=noise_iter)
-        lorenz_traj = lorenz_traj[750:, which_var]
+        lorenz_traj = simulate_lorenz(t_max=750+ts_length*step_size, noise=noise)
+        lorenz_traj = lorenz_traj[750:, 0]                                                 # should we delete first bit?
 
         # create less dense data set
         sparse_lorenz_traj = []
-        for i in range(len(lorenz_traj)):
-            if i % sparsity == 0:
-                sparse_lorenz_traj.append(lorenz_traj[i])
+        for j in range(len(lorenz_traj)):
+            if j % step_size == 0:
+                sparse_lorenz_traj.append(lorenz_traj[j])
 
         # differentiate and standardize
-        time_series = np.diff(sparse_lorenz_traj)
-        time_series = standardize_time_series(time_series)
-        time_series = time_series[:, 0]
-
-        # Plot time series
-        plot_time_series(time_series)
-        optimal_lag = plot_autocorrelation(time_series)
+        ts = np.diff(sparse_lorenz_traj)
+        ts = standardize_time_series(ts)
+        ts = ts[:, 0]
 
         # Perform EDM
-        optimal_E = my_simplex_projection(time_series, lag= optimal_lag, max_E=10)
-        #plot_embedding(time_series, E= min(2, optimal_E), lag = optimal_lag)
-        my_S_map(time_series, lag=optimal_lag, E=optimal_E)
+        dim = simplex_projection(ts, lag=tau, max_E=sqrt(ts_length))
+        smap(ts, lag=tau, E=dim)
 
         counter += 1
+
+    return 0
+
+
+def multivariate_simulations():
+    return 0
+
+
+if __name__ == "__main__":
+
+    random.seed(123)
+
+    univariate_simulations(ts_length=10)
+
+
 
 
 

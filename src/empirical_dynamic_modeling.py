@@ -192,7 +192,7 @@ def plot_results_smap(ts, targets, weights, predicted, distances, lag, E):
 
 # TODO: dont consider any point that has the target in its embedding vector?
 # TODO: p-step ahead prediction
-def my_simplex_projection(ts, lag=1, max_E=10, method="standard"):
+def simplex_projection(ts, lag=1, max_E=10, method="standard"):
     """
     Simplex projecting with leave-one-out cross validation. Finds an optimal embedding dimension E that maximizes the
     correlation coefficient between predicted and observed values.
@@ -213,6 +213,7 @@ def my_simplex_projection(ts, lag=1, max_E=10, method="standard"):
     optimal_targets = []
 
     # For each dimension E
+    max_E = int(max_E)
     for dim in range(1, max_E + 1):
 
         if method == "standard":
@@ -389,7 +390,7 @@ def my_simplex_projection(ts, lag=1, max_E=10, method="standard"):
 # TODO: dont consider any point that has the target in its embedding vector
 # TODO: add singular value decomposition?
 # TODO: p-step ahead predictions
-def my_S_map(ts, lag=1, E=1, method="standard"):
+def smap(ts, lag=1, E=1, method="standard"):
     # Create Hankel matrix and Distance Matrix
     if method == "standard":
         # time_series should contain a single time series
@@ -623,5 +624,5 @@ if __name__ == "__main__":
     # time_series = time_series/100
     # time_series = np.sin(time_series)
 
-    optimal_E = my_simplex_projection(time_series, lag=8, max_E=10, method="dewdrop")
-    my_S_map(time_series, lag=8, E=optimal_E, method="dewdrop")
+    optimal_E = simplex_projection(time_series, lag=8, max_E=10, method="dewdrop")
+    smap(time_series, lag=8, E=optimal_E, method="dewdrop")
