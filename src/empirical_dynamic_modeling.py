@@ -33,6 +33,46 @@ def create_hankel_matrix(ts, lag=1, E=2):
     return hankel_matrix
 
 
+def make_libraries(ts, lag, E, test_interval):
+    """
+    Function that takes a single or multiple time series, concatenates them if necessary,
+    creates tuples of time-delay embedding vectors and one-step-ahead predictees and returns
+    these in a training and test set.
+    :param ts: a time series or a list of time series
+    :param test_interval: a tuple [x, y] marking the interval for test instances
+    :return: a training and test set of tuples [[x_t-1, ..., x_t-E], x_t]
+    """
+
+    lib = []
+
+    # make sure time_series is a list of np_arrays
+    if isinstance(ts, list):
+        if isinstance(ts[0], float) or isinstance(ts[0], int):
+            ts = np.array(ts)
+            ts = [ts]
+        if isinstance(ts[0], list):
+            for i in range(len(ts)):
+                ts[i] = np.array(ts[i])
+
+    for series in range(len(ts)):
+        hankel_matrix = create_hankel_matrix(ts[series], lag, E)
+
+        # For each column, create a tuple (time-delay vector, prediction)
+        for col in range(hankel_matrix.shape[1]):
+            tuple = [hankel_matrix[1:, col], hankel_matrix[0, col]]
+            lib.append(tuple)
+
+    if test_interval[0] < 0 or test_interval[1] < test_interval[0] or test_interval[1] > len(lib):
+        print("Given test interval is invalid. Splitting the library in two equal halves.")
+        test_interval[0] = int(len(lib) / 2)
+        test_interval[1] = len(lib)
+
+    # split into training and test set
+    test_set = lib[test_interval[0]:test_interval[1]]
+    training_set = lib[:test_interval[0]] + lib[test_interval[1]:]
+
+    return(training_set, test_set)
+
 def create_distance_matrix(hankel_matrix):
     """
     Returns a matrix of distances between points (columns of the Hankel matrix) in state space.
@@ -390,18 +430,11 @@ def simplex_projection(ts, lag=1, max_E=10, method="standard"):
 # TODO: dont consider any point that has the target in its embedding vector
 # TODO: add singular value decomposition?
 # TODO: p-step ahead predictions
-def smap(ts, lag=1, E=1, method="standard"):
-    # Create Hankel matrix and Distance Matrix
-    if method == "standard":
-        # time_series should contain a single time series
-        if type(ts[0]) == list or type(ts[0]) == np.ndarray:
-            print(
-                "More than one time series has been given to standard simplex projection. Proceeding with Fleurs version.")
-            method = "fleur"
-        else:
-            hankel_matrix = create_hankel_matrix(ts, lag, E)
-            dist_matrix = create_distance_matrix(hankel_matrix)
-            targets = range(hankel_matrix.shape[1] - 1)
+def smap(ts, lag=1, E=1):
+    hankel_matrix = create_hankel_matrix(ts, lag, E)
+    dist_matrix = create_distance_matrix(hankel_matrix)
+    targets = range(hankel_matrix.shape[1] - 1)
+
     if method == "fleur":
         targets = list()
         offset = 1
@@ -591,38 +624,54 @@ def smap(ts, lag=1, E=1, method="standard"):
 
 
 if __name__ == "__main__":
-    # Sample lorenz trajectory
-    lorenz_trajectory = simulate_lorenz(t_max=2500, noise=0.01)
-    lorenz_x = lorenz_trajectory[850:, 0]
+    a = [1,2,3,4,5,6,7,8,9,10]
+    # train, test = make_libraries(a, 1, 3, [2,4])
 
-    new_lorenz_x = []
-    for i in range(len(lorenz_x)):
-        if i % 10 == 0:
-            new_lorenz_x.append(lorenz_x[i])
+    b = [1,2,3,4,5,6,7,8,9,10]
+    train, test = make_libraries([a,b], 1, 3, [-6,4])
 
-    lorenz_x = new_lorenz_x
+    a = np.array(a)
+    b = np.array(b)
+    train, test = make_libraries([a, b], 1, 3, [2, 90])
 
-    # Differentiate and standardize
-    time_series = np.diff(lorenz_x)
-    time_series = standardize_time_series(time_series)
-    time_series = time_series[:, 0]
+    # # Sample lorenz trajectory
+    # lorenz_trajectory = simulate_lorenz(t_max=2500, noise=0.01)
+    # lorenz_x = lorenz_trajectory[850:, 0]
+    #
+    # new_lorenz_x = []
+    # for i in range(len(lorenz_x)):
+    #     if i % 10 == 0:
+    #         new_lorenz_x.append(lorenz_x[i])
+    #
+    # lorenz_x = new_lorenz_x
+    #
+    # # Differentiate and standardize
+    # time_series = np.diff(lorenz_x)
+    # time_series = standardize_time_series(time_series)
+    # time_series = time_series[:, 0]
+    #
+    # time_series_a = np.array(time_series[1:250])
+    # time_series_b = np.array(time_series[10:261])
+    # time_series_c = np.array(time_series[20:272])
+    # time_series = [time_series_a, time_series_b, time_series_c]
+    #
+    # make_libraries(time_series, 1, 3, [10,30])
+    #
+    # # Plot time series
+    # # plot_time_series(time_series)
+    #
+    # # plot_autocorrelation(time_series)
+    # # plot_partial_autocorrelation(time_series)
+    # # plot_recurrence(time_series[1:100], delay=8)
+    # # make_lag_scatterplot(time_series, lag=8)
+    #
+    # # time_series = np.arange(1,100)
+    # # time_series = time_series/100
+    # # time_series = np.sin(time_series)
+    #
+    # #optimal_E = simplex_projection(time_series, lag=8, max_E=10, method="dewdrop")
+    # #smap(time_series, lag=8, E=optimal_E, method="dewdrop")
 
-    time_series_a = time_series[1:250]
-    time_series_b = time_series[10:261]
-    time_series_c = time_series[20:272]
-    time_series = [time_series_a, time_series_b, time_series_c]
-
-    # Plot time series
-    # plot_time_series(time_series)
-
-    # plot_autocorrelation(time_series)
-    # plot_partial_autocorrelation(time_series)
-    # plot_recurrence(time_series[1:100], delay=8)
-    # make_lag_scatterplot(time_series, lag=8)
-
-    # time_series = np.arange(1,100)
-    # time_series = time_series/100
-    # time_series = np.sin(time_series)
-
-    optimal_E = simplex_projection(time_series, lag=8, max_E=10, method="dewdrop")
-    smap(time_series, lag=8, E=optimal_E, method="dewdrop")
+    #TODO:
+    #time series should be np.arrays, not lists
+    #somewhere, this should be checked
