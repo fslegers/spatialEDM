@@ -1,11 +1,8 @@
 import math
-
 import itertools
-
 import matplotlib.cm
 from pyEDM import *
 from scipy.stats import pearsonr
-
 from preprocessing import *
 from src.create_dummy_time_series import simulate_lorenz
 from src.time_series_plots import plot_time_series
@@ -33,7 +30,7 @@ def create_hankel_matrix(ts, lag=1, E=2):
     return hankel_matrix
 
 
-def make_libraries(ts, lag, E, test_interval):
+def make_libraries(ts, lag, E, test_interval = [-1,1]):
     """
     Function that takes a single or multiple time series, concatenates them if necessary,
     creates tuples of time-delay embedding vectors and one-step-ahead predictees and returns
@@ -73,17 +70,22 @@ def make_libraries(ts, lag, E, test_interval):
 
     return(training_set, test_set)
 
-def create_distance_matrix(hankel_matrix):
+
+def create_distance_matrix(X, Y):
     """
-    Returns a matrix of distances between points (columns of the Hankel matrix) in state space.
+    Returns a matrix of distances between time-delayed embedding vectors in Y to vectors in X
     """
-    N = hankel_matrix.shape[1]
-    dist_matrix = np.zeros((N, N))
-    for p in range(N):
-        for q in range(p, N):
-            dist = np.linalg.norm((hankel_matrix[:, p] - hankel_matrix[:, q]))
+    #TODO:
+    #Dist matrix wordt nu steeds opnieuw berekend
+    #terwijl dat niet zou hoeven tijdens K-fold CV
+    dist_matrix = np.zeros((len(Y), len(X)))
+
+    for p in range(len(Y)):
+        for q in range(len(X)):
+            x = X[q][0]
+            y = Y[p][0]
+            dist = np.linalg.norm((y - x))
             dist_matrix[p, q] = dist
-            dist_matrix[q, p] = dist
 
     return dist_matrix
 
@@ -625,14 +627,17 @@ def smap(ts, lag=1, E=1):
 
 if __name__ == "__main__":
     a = [1,2,3,4,5,6,7,8,9,10]
-    # train, test = make_libraries(a, 1, 3, [2,4])
+    train, test = make_libraries(a, 1, 3, [2,4])
+    distances = create_distance_matrix(train, test)
 
     b = [1,2,3,4,5,6,7,8,9,10]
-    train, test = make_libraries([a,b], 1, 3, [-6,4])
+    train, test = make_libraries([a,b], 1, 3)
+    distances = create_distance_matrix(train, test)
 
     a = np.array(a)
     b = np.array(b)
-    train, test = make_libraries([a, b], 1, 3, [2, 90])
+    train, test = make_libraries([a, b], 1, 3)
+    distances = create_distance_matrix(train, test)
 
     # # Sample lorenz trajectory
     # lorenz_trajectory = simulate_lorenz(t_max=2500, noise=0.01)
