@@ -30,16 +30,7 @@ def create_hankel_matrix(ts, lag=1, E=2):
     return hankel_matrix
 
 
-def make_libraries(ts, lag, E, test_interval = [-1,1]):
-    """
-    Function that takes a single or multiple time series, concatenates them if necessary,
-    creates tuples of time-delay embedding vectors and one-step-ahead predictees and returns
-    these in a training and test set.
-    :param ts: a time series or a list of time series
-    :param test_interval: a tuple [x, y] marking the interval for test instances
-    :return: a training and test set of tuples [[x_t-1, ..., x_t-E], x_t]
-    """
-
+def embed_time_series(ts, lag=1, E=2):
     lib = []
 
     # make sure time_series is a list of np_arrays
@@ -59,16 +50,97 @@ def make_libraries(ts, lag, E, test_interval = [-1,1]):
             tuple = [hankel_matrix[1:, col], hankel_matrix[0, col]]
             lib.append(tuple)
 
-    if test_interval[0] < 0 or test_interval[1] < test_interval[0] or test_interval[1] > len(lib):
-        print("Given test interval is invalid. Splitting the library in two equal halves.")
-        test_interval[0] = int(len(lib) / 2)
-        test_interval[1] = len(lib)
+    return lib
 
-    # split into training and test set
-    test_set = lib[test_interval[0]:test_interval[1]]
-    training_set = lib[:test_interval[0]] + lib[test_interval[1]:]
 
-    return(training_set, test_set)
+def k_fold_cv(lag, E, lib, k, method):
+    """
+    :param ts: int_array time series or a list of int_array time series
+    :param k: the number of groups that the (concatenated) time series is to be split into
+    :return:
+    """
+
+    block_size = len(lib) / k
+
+    results = []
+
+    for fold in range(k - 1):
+        test_set = lib[fold * block_size:(fold + 1) * block_size]
+        training_set = lib[:fold * block_size] + lib[(fold + 1) * block_size:]
+
+        if method == 'EDM':
+            result_fold = edm(lag, E, training_set, test_set)
+        else:
+            result_fold = gpr(lag, E, training_set, test_set)
+
+        results.append(result_fold)
+
+    # fold = k (can contain more than fold_size samples)
+    test_set = lib[(k - 1) * block_size:]
+    training_set = lib[:(k - 1) * block_size]
+
+    if method == 'EDM':
+        result_fold = edm(lag, E, training_set, test_set)
+    else:
+        result_fold = gpr(lag, E, training_set, test_set)
+
+        results.append(result_fold)
+
+    # Aggregate results
+
+    return results
+
+
+def perform_validation(ts, lag, E, k = None, method = "EDM"):
+    """
+    Function that takes a single or multiple time series, concatenates them if necessary,
+    creates tuples of time-delay embedding vectors and one-step-ahead predictees and returns
+    these in a training and test set.
+    :param ts: a time series or a list of time series
+    :param test_interval: a tuple [x, y] marking the interval for test instances
+    :return: a training and test set of tuples [[x_t-1, ..., x_t-E], x_t]
+    """
+
+    # Embed time series
+    lib = embed_time_series(ts, lag, E) #TODO: in embed_time_series, incorporate lags of neighbors for Johnsons method
+
+    # Troubleshooting
+    if isinstance(k, int):
+        if abs(k) >= len(lib):
+            print('Given k is too large. Moving on with leave-one-out cross validation.')
+            if k < 0:
+                k = -1
+            else:
+                k = len(lib) - 1
+        if k == 0:
+            k = None
+    elif k is not None:
+        print('Given k is not valid. Moving on with 50-50 last block validation.')
+        k = None
+    if method not in ["EDM", "GPR"]:
+        print('Given method is not valid. Moving on with EDM.')
+        method = "EDM"
+
+    useful_boolean = False
+    if k < 0: # Last block validation (with block size k)
+        useful_boolean = True
+        training_set = lib[:k]
+        test_set = lib[k:]
+
+    elif k == None: # 50-50 Last block validation
+        useful_boolean = True
+        test_set = lib[math.ceil(len(lib) / 2.0):]
+        training_set = lib[:math.ceil(len(lib)/2.0)]
+
+    if useful_boolean:
+        if method == "EDM":
+            result = edm(lag, E, training_set, test_set)
+        else:
+            result = gpr(lag, E, training_set, test_set)
+    else: # k-fold Cross Validation
+        result = k_fold_cv(lag, E, lib, k, method)
+
+    return result
 
 
 def create_distance_matrix(X, Y):
@@ -613,70 +685,24 @@ def smap(ts, lag=1, E=1):
 
     plt.show()
 
-    if method == 'standard':
-        plot_results_smap(ts,
-                          targets_for_plotting,
-                          weights_for_plotting,
-                          predictions_for_plotting,
-                          neighbors_for_plotting,
-                          lag,
-                          E)
+
+    plot_results_smap(ts,
+                      targets_for_plotting,
+                      weights_for_plotting,
+                      predictions_for_plotting,
+                      neighbors_for_plotting,
+                      lag,
+                      E)
 
     return optimal_theta
 
 
 if __name__ == "__main__":
-    a = [1,2,3,4,5,6,7,8,9,10]
-    train, test = make_libraries(a, 1, 3, [2,4])
-    distances = create_distance_matrix(train, test)
-
     b = [1,2,3,4,5,6,7,8,9,10]
     train, test = make_libraries([a,b], 1, 3)
     distances = create_distance_matrix(train, test)
 
-    a = np.array(a)
+    #a = np.array(a)
     b = np.array(b)
-    train, test = make_libraries([a, b], 1, 3)
-    distances = create_distance_matrix(train, test)
-
-    # # Sample lorenz trajectory
-    # lorenz_trajectory = simulate_lorenz(t_max=2500, noise=0.01)
-    # lorenz_x = lorenz_trajectory[850:, 0]
-    #
-    # new_lorenz_x = []
-    # for i in range(len(lorenz_x)):
-    #     if i % 10 == 0:
-    #         new_lorenz_x.append(lorenz_x[i])
-    #
-    # lorenz_x = new_lorenz_x
-    #
-    # # Differentiate and standardize
-    # time_series = np.diff(lorenz_x)
-    # time_series = standardize_time_series(time_series)
-    # time_series = time_series[:, 0]
-    #
-    # time_series_a = np.array(time_series[1:250])
-    # time_series_b = np.array(time_series[10:261])
-    # time_series_c = np.array(time_series[20:272])
-    # time_series = [time_series_a, time_series_b, time_series_c]
-    #
-    # make_libraries(time_series, 1, 3, [10,30])
-    #
-    # # Plot time series
-    # # plot_time_series(time_series)
-    #
-    # # plot_autocorrelation(time_series)
-    # # plot_partial_autocorrelation(time_series)
-    # # plot_recurrence(time_series[1:100], delay=8)
-    # # make_lag_scatterplot(time_series, lag=8)
-    #
-    # # time_series = np.arange(1,100)
-    # # time_series = time_series/100
-    # # time_series = np.sin(time_series)
-    #
-    # #optimal_E = simplex_projection(time_series, lag=8, max_E=10, method="dewdrop")
-    # #smap(time_series, lag=8, E=optimal_E, method="dewdrop")
-
-    #TODO:
-    #time series should be np.arrays, not lists
-    #somewhere, this should be checked
+    #train, test = make_libraries([a, b], 1, 3)
+    #distances = create_distance_matrix(train, test)
