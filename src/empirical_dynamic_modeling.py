@@ -6,7 +6,11 @@ from scipy.stats import pearsonr
 from preprocessing import *
 from src.create_dummy_time_series import simulate_lorenz
 from src.time_series_plots import plot_time_series
+import random
 
+from sklearn.gaussian_process import GaussianProcessRegressor
+from sklearn.gaussian_process.kernels import RBF
+from sklearn.metrics import r2_score
 
 def create_hankel_matrix(ts, lag=1, E=2):
     """
@@ -30,6 +34,22 @@ def create_hankel_matrix(ts, lag=1, E=2):
     return hankel_matrix
 
 
+def create_distance_matrix(X, Y):
+    """
+    Returns a matrix of distances between time-delayed embedding vectors in Y to vectors in X
+    """
+    dist_matrix = np.zeros((len(X), len(Y)))
+
+    for p in range(len(X)):
+        for q in range(len(Y)):
+            x = X[p][0]
+            y = Y[q][0]
+            dist = np.linalg.norm((y - x))
+            dist_matrix[p, q] = dist
+
+    return dist_matrix
+
+
 def embed_time_series(ts, lag=1, E=2):
     lib = []
 
@@ -41,6 +61,12 @@ def embed_time_series(ts, lag=1, E=2):
         if isinstance(ts[0], list):
             for i in range(len(ts)):
                 ts[i] = np.array(ts[i])
+    elif isinstance(ts, np.ndarray):
+        try:
+            np.shape(ts)[1]
+        except:
+            ts = np.reshape(ts, (1,100))
+
 
     for series in range(len(ts)):
         hankel_matrix = create_hankel_matrix(ts[series], lag, E)
@@ -53,656 +79,332 @@ def embed_time_series(ts, lag=1, E=2):
     return lib
 
 
-def k_fold_cv(lag, E, lib, k, method):
-    """
-    :param ts: int_array time series or a list of int_array time series
-    :param k: the number of groups that the (concatenated) time series is to be split into
-    :return:
-    """
+def simplex_forecasting(training_set, test_set, lag, dim):
 
-    block_size = len(lib) / k
+    # Calculate distances from test points to training points
+    dist_matrix = create_distance_matrix(test_set, training_set)
 
-    results = []
+    observed = []
+    predicted = []
 
-    for fold in range(k - 1):
-        test_set = lib[fold * block_size:(fold + 1) * block_size]
-        training_set = lib[:fold * block_size] + lib[(fold + 1) * block_size:]
+    for target in range(len(test_set)):
+        # Select E + 1 nearest neighbors
+        dist_to_target = dist_matrix[target,:]
+        nearest_neighbors = np.argpartition(dist_to_target, (0, dim+2))
+        nearest_neighbors = np.arange(len(training_set))[nearest_neighbors[0:dim+1]]
+        min_distance = dist_to_target[nearest_neighbors[0]]
 
-        if method == 'EDM':
-            result_fold = edm(lag, E, training_set, test_set)
-        else:
-            result_fold = gpr(lag, E, training_set, test_set)
+        weighted_average = 0
+        total_weight = 0
+        weights = []
 
-        results.append(result_fold)
+        # Calculate weighted sum of next value
+        for neighbor in nearest_neighbors:
+           if min_distance == 0:
+               if dist_to_target[neighbor] == 0:
+                   weight = 1
+               else:
+                   weight = 0.000001
+           else:
+               weight = np.exp(-dist_to_target[neighbor] / min_distance)
 
-    # fold = k (can contain more than fold_size samples)
-    test_set = lib[(k - 1) * block_size:]
-    training_set = lib[:(k - 1) * block_size]
+           next_val = training_set[neighbor][1]
+           weighted_average += next_val * weight
+           total_weight += weight
+           weights.append(weight)
 
-    if method == 'EDM':
-        result_fold = edm(lag, E, training_set, test_set)
-    else:
-        result_fold = gpr(lag, E, training_set, test_set)
+        # Calculate weighted average
+        weighted_average = weighted_average / total_weight
+        predicted.append(weighted_average)
+        observed.append(test_set[target][1])
 
-        results.append(result_fold)
+    results = dict()
 
-    # Aggregate results
+    # Calculate performance measures
+    results['corr'] = pearsonr(observed, predicted)[0]
+    results['mae'] = mean(abs(np.subtract(observed, predicted)))
+    results['rmse'] = math.sqrt(mean(np.square(np.subtract(observed, predicted))))
+
+    results['observed'] = observed
+    results['predicted'] = predicted
 
     return results
 
 
-def perform_validation(ts, lag, E, k = None, method = "EDM"):
+def smap_forecasting(training_set, test_set, theta):
+    # Calculate distances from test points to training points
+    dist_matrix = create_distance_matrix(test_set, training_set)
+
+    results = dict()
+    results['observed'], results['predicted'] = [], []
+    results['theta'] = theta
+
+    for target in range(len(test_set)):
+        # Calculate weights for each training point
+        distances = dist_matrix[target, :]
+        weights = np.exp(-theta * distances / mean(distances))
+
+        # Fill vector of weighted future values of training set
+        next_values = [point[1] for point in training_set]
+        b = np.multiply(weights, next_values)
+
+        # Fill matrix A
+        prev_values = np.array([item[0] for item in training_set])
+        A = prev_values * np.array(weights)[:, None]
+
+        # Calculate coefficients C using the pseudo-inverse of A (via SVD)
+        coeffs = np.matmul(np.linalg.pinv(A), b)
+
+        # Make prediction
+        prediction = np.matmul(np.array(test_set[target][0]), coeffs)
+        results['observed'].append(test_set[target][1])
+        results['predicted'].append(prediction)
+
+    # Calculate performance measures
+    results['corr'] = pearsonr(results['observed'], results['predicted'])[0]
+    results['mae'] = mean(abs(np.subtract(results['observed'], results['predicted'])))
+    results['rmse'] = math.sqrt(mean(np.square(np.subtract(results['observed'], results['predicted']))))
+
+    return results
+
+
+def forecasting_for_cv(lib, k, lag, E, method):
     """
-    Function that takes a single or multiple time series, concatenates them if necessary,
-    creates tuples of time-delay embedding vectors and one-step-ahead predictees and returns
-    these in a training and test set.
-    :param ts: a time series or a list of time series
-    :param test_interval: a tuple [x, y] marking the interval for test instances
-    :return: a training and test set of tuples [[x_t-1, ..., x_t-E], x_t]
+    :param k: the number of groups that the (concatenated) time series is to be split into
     """
+    if k > len(lib):
+        print("number of folds is too large")
+        k = len(lib)
 
-    # Embed time series
-    lib = embed_time_series(ts, lag, E) #TODO: in embed_time_series, incorporate lags of neighbors for Johnsons method
+    results = dict()
+    results['corr'], results['mae'], results['rmse'] = 0, 0, 0
+    results['observed'], results['predicted'] = [], []
+    block_size = int(len(lib) / k)
 
-    # Troubleshooting
-    if isinstance(k, int):
-        if abs(k) >= len(lib):
-            print('Given k is too large. Moving on with leave-one-out cross validation.')
-            if k < 0:
-                k = -1
-            else:
-                k = len(lib) - 1
-        if k == 0:
-            k = None
-    elif k is not None:
-        print('Given k is not valid. Moving on with 50-50 last block validation.')
-        k = None
-    if method not in ["EDM", "GPR"]:
-        print('Given method is not valid. Moving on with EDM.')
-        method = "EDM"
+    for fold in range(k):
 
-    useful_boolean = False
-    if k < 0: # Last block validation (with block size k)
-        useful_boolean = True
-        training_set = lib[:k]
-        test_set = lib[k:]
-
-    elif k == None: # 50-50 Last block validation
-        useful_boolean = True
-        test_set = lib[math.ceil(len(lib) / 2.0):]
-        training_set = lib[:math.ceil(len(lib)/2.0)]
-
-    if useful_boolean:
-        if method == "EDM":
-            result = edm(lag, E, training_set, test_set)
+        if fold != k - 1:
+            # Split into training and test set
+            test_set = lib[fold * block_size:(fold + 1) * block_size]
+            training_set = lib[:fold * block_size] + lib[(fold + 1) * block_size:]
         else:
-            result = gpr(lag, E, training_set, test_set)
-    else: # k-fold Cross Validation
-        result = k_fold_cv(lag, E, lib, k, method)
+            test_set = lib[fold * block_size:]
+            training_set = lib[:fold * block_size]
 
-    return result
-
-
-def create_distance_matrix(X, Y):
-    """
-    Returns a matrix of distances between time-delayed embedding vectors in Y to vectors in X
-    """
-    #TODO:
-    #Dist matrix wordt nu steeds opnieuw berekend
-    #terwijl dat niet zou hoeven tijdens K-fold CV
-    dist_matrix = np.zeros((len(Y), len(X)))
-
-    for p in range(len(Y)):
-        for q in range(len(X)):
-            x = X[q][0]
-            y = Y[p][0]
-            dist = np.linalg.norm((y - x))
-            dist_matrix[p, q] = dist
-
-    return dist_matrix
-
-
-def plot_performance_simplex(cor_list, mae_list, rmse_list):
-    """
-    Plots the correlation coefficient, mean absolute error (MAE) and
-    root mean square error (RMSE) of Simplex for each dimension E.
-    """
-    # Show figure of performance plots
-    fig, axs = plt.subplots(3, sharex=True)
-    fig.suptitle('Performance measures per E')
-    max_E = len(cor_list) + 1
-
-    axs[0].set_ymargin(0.1)
-    axs[1].set_ymargin(0.1)
-    axs[2].set_ymargin(0.1)
-
-    axs[0].plot(range(1, len(cor_list) + 1), cor_list, color='black', marker='o')
-    axs[1].plot(range(1, len(mae_list) + 1), mae_list, color='black', marker='o')
-    axs[2].plot(range(1, len(rmse_list) + 1), rmse_list, color='black', marker='o')
-
-    axs[0].set_ylabel('rho')
-    axs[1].set_ylabel('MAE')
-    axs[2].set_ylabel('RMSE')
-    axs[2].set_xlabel('E')
-
-    major_tick = range(1, max_E + 1)
-    axs[0].set_xticks(major_tick)
-    axs[0].xaxis.grid(which='major')
-    axs[1].xaxis.grid(True)
-    axs[2].xaxis.grid(True)
-    axs[0].ticklabel_format(useOffset=False)
-    axs[0].yaxis.TickLabelFormat = '%.2f'
-
-    # Highlight the point with optimal performance measure
-    axs[0].plot(np.argmax(cor_list) + 1, max(cor_list), color='m', marker='D', markersize=7)
-    axs[1].plot(np.argmin(mae_list) + 1, min(mae_list), color='m', marker='D', markersize=7)
-    axs[2].plot(np.argmin(rmse_list) + 1, min(rmse_list), color='m', marker='D', markersize=7)
-
-    plt.show()
-
-    print("Highest correlation for E = :", str(np.argmax(cor_list) + 1) + " (" + str(max(cor_list)) + ")")
-    print("Lowest MAE for E = :", str(np.argmin(mae_list) + 1) + " (" + str(min(mae_list)) + ")")
-    print("Lowest RMSE for E = :", str(np.argmin(rmse_list) + 1) + " (" + str(min(rmse_list)) + ")")
-
-
-def plot_results_simplex(ts, targets, nearest_neighbors, predicted, lag, E):
-    """
-    Shows which neighbors were used in the prediction of the target points "targets" by the Simplex
-    method with dimension E. Plots both the predicted as the observed values of targets next value.
-    """
-    # TODO: something with weights
-    ts = create_hankel_matrix(ts, lag, E)[0, :]
-    obs_times = np.arange(0, len(ts), 1)
-
-    for j in range(len(targets)):
-        target = targets[j]
-        plt.plot(obs_times, ts, color='black', lw=0.5)
-        plt.scatter(obs_times, ts, 5, color='black', marker='o')
-
-        # Decide on xlim
-        min_x = max(1, min(target, min(nearest_neighbors[j])) - E * lag - 1)
-        max_x = min(len(ts), max(target, max(nearest_neighbors[j])) + lag * E + 1)
-
-        width = max_x - min_x
-        if width <= 50:
-            min_x = max(1, min_x - int((50 - width) / 2.0)) - 1
-            max_x = min(len(ts) + 1, max_x + int((50 - width) / 2.0)) + 1
-
+        # Perform forecasting
+        if method == "simplex":
+            result_fold = simplex_forecasting(training_set, test_set, lag, E)
         else:
-            min_x = max(1, min_x - 10)
-            max_x = min(len(ts) + 1, max_x + 10)
+            result_fold = smap_forecasting(training_set, test_set, method)
 
-        plt.xlim((min_x, max_x))
+        results['observed'] += result_fold['observed']
+        results['predicted'] += result_fold['predicted']
 
-        # Make shaded background for target history
-        if lag <= 3:
-            plt.axvspan(target - E * lag + 1.1, target + 1, facecolor='m', alpha=0.2)
-            for j in np.arange(target - E * lag + 1, target - lag + 1):
-                plt.scatter(j, ts[j], color='m', zorder=2)
+    # Calculate performance measures
+    results['corr'] = pearsonr(results['observed'], results['predicted'])[0]
+    results['mae'] = mean(abs(np.subtract(results['observed'], results['predicted'])))
+    results['rmse'] = math.sqrt(mean(np.square(np.subtract(results['observed'], results['predicted']))))
 
-        # Highlight nearest neighbors
-        for neighbor in nearest_neighbors[j]:
-            plt.plot([neighbor, neighbor + 1], [ts[neighbor], ts[neighbor + 1]],
-                     linestyle='--', color='blue', lw=2)
-            plt.scatter(neighbor, ts[neighbor], 5, color='blue', marker='o', zorder=2)
-            plt.scatter(neighbor + 1, ts[neighbor + 1], 30, color='blue', marker='D', zorder=2)
-
-            if lag <= 3:
-                plt.axvspan(neighbor - E * lag + 1.1, neighbor + 1 - 0.1, facecolor='c', alpha=0.1)
-
-                # Highlight embedding vector
-                for j in range(1, E + 1):
-                    plt.scatter(neighbor - j * lag, ts[neighbor - j * lag], 5,
-                                color='blue', marker='o', zorder=2)
-
-        # Highlight target point
-        plt.plot([target, target + 1], [ts[target], predicted[j]],
-                 linestyle='--', color='tab:purple', lw=2)
-        plt.scatter(target, ts[target], 5, color='tab:purple', marker='o', zorder=2)
-        plt.scatter(target + 1, ts[target + 1], 30, color='tab:purple', marker='D', zorder=2)
-        plt.scatter(target + 1, predicted[j], 75, color='magenta', marker='*', zorder=2)
-
-        # Highlight embedding vector
-        if lag <= 3:
-            for q in range(1, E + 1):
-                plt.scatter(target - q * lag, ts[target - q * lag], 5, color='m', marker='o', zorder=2)
-
-        plt.title(str(E + 1) + "NN-forecast\nLag = " + str(lag) + ", E = " + str(E))
-        plt.show()
-
-    return 0
+    return results
 
 
-def plot_results_smap(ts, targets, weights, predicted, distances, lag, E):
-    ts = create_hankel_matrix(ts, lag, E)[0, :]
-    obs_times = np.arange(0, len(ts), 1)
+def simplex_loop(ts, lag, max_E = 10, val_method ="LB", val_int = None):
 
-    # indices to step through colormap
-    cmap = matplotlib.cm.get_cmap('Blues')
+    if val_method == "LB" and val_int == None:
+        val_int = 50
 
-    for i in range(len(targets)):
-        target = targets[i]
-        plt.plot(obs_times, ts, color='black', lw=0.5)
-        plt.scatter(obs_times, ts, 5, color='black', marker='o')
+    results = dict()
+    results['corr'], results['E'] = 0, None
+    results['corr_list'], results['mae_list'], results['rmse_list'] = [], [], []
 
-        # Highlight nearest neighbors
-        neighborhood = list(itertools.compress(range(len(ts) - 1), distances[target, :-1]))
-        for neighbor in range(len(neighborhood)):
-            color = cmap(0.05 + 0.95 * (weights[i][neighbor] - min(weights[i])) / (max(weights[i]) - min(weights[i])))
-            plt.axvspan(neighborhood[neighbor] - 0.5, neighborhood[neighbor] + 0.5, facecolor=color, alpha=0.75)
+    for E in range(1, max_E + 1):
+        lib = embed_time_series(ts, lag, E)
 
-        # Highlight target point
-        plt.plot([target, target + 1], [ts[target], predicted[i]],
-                 linestyle='--', color='tab:purple', lw=2)
-        plt.scatter(target, ts[target], 5, color='tab:purple', marker='o', zorder=2)
-        plt.scatter(target + 1, ts[target + 1], 30, color='tab:purple', marker='D', zorder=2)
-        plt.scatter(target + 1, predicted[i], 75, color='magenta', marker='*', zorder=2)
+        if val_method == "CV": # k-fold cross validation
+            result_E = forecasting_for_cv(lib, val_int, lag, E, method="simplex")
 
-        plt.title("S-Map forecast\nLag = " + str(lag) + ", E = " + str(E))
-        plt.show()
+        else: # last block validation
+            split = int(np.ceil(val_int/100 * len(lib)))
+            training_set = lib[:split]
+            test_set = lib[split:]
+            result_E = simplex_forecasting(training_set, test_set, lag, E)
 
-    return 0
+        results['corr_list'].append(result_E['corr'])
+        results['mae_list'].append(result_E['mae'])
+        results['rmse_list'].append(result_E['rmse'])
 
+        if result_E['corr'] > results['corr'] or E == 1:
+            results['corr'] = result_E['corr']
+            results['E'] = E
+            results['observed'] = result_E['observed']
+            results['predicted'] = result_E['predicted']
 
-# TODO: dont consider any point that has the target in its embedding vector?
-# TODO: p-step ahead prediction
-def simplex_projection(ts, lag=1, max_E=10, method="standard"):
-    """
-    Simplex projecting with leave-one-out cross validation. Finds an optimal embedding dimension E that maximizes the
-    correlation coefficient between predicted and observed values.
-    """
+    print("Optimal dimension found by Simplex is E = " + str(results['E']) + " (phi = " + str(results['corr']) + ")")
 
-    # Things to keep track of for plotting
-    cor_list = []
-    mae_list = []
-    rmse_list = []
-    KNNs_for_plotting = []
-    weights_for_plotting = []
-    targets_for_plotting = []
-    predicted_for_plotting = []
-
-    # Things to keep track of for finding optimal E
-    optimal_cor = 0
-    optimal_predictions = []
-    optimal_targets = []
-
-    # For each dimension E
-    max_E = int(max_E)
-    for dim in range(1, max_E + 1):
-
-        if method == "standard":
-            # time_series should contain a single time series
-            if type(ts[0]) == list:
-                print("More than one time series has been given to standard simplex projection. "
-                      "Proceeding with Hsieh's version.")
-                method = "dewdrop"
-            else:
-                hankel_matrix = create_hankel_matrix(ts, lag, dim)
-                dist_matrix = create_distance_matrix(hankel_matrix)
-
-        if method == "dewdrop":
-            targets = list()
-            offset = 1
-            hankel_matrix = np.array([]).reshape(dim + 1, 0)
-            for i in range(len(ts)):
-                hankel_matrix_i = create_hankel_matrix(ts[i], lag, dim)
-                N_i = hankel_matrix_i.shape[1]
-                targets = targets + list(range(offset, offset + N_i - 1))
-                offset += N_i
-                hankel_matrix = np.hstack((hankel_matrix, hankel_matrix_i))
-
-            dist_matrix = create_distance_matrix(hankel_matrix)
-            # set distances to last values of a time series to infinity
-            offset = 0
-            for i in range(len(ts)):
-                index = offset + len(ts[i]) - dim * lag - 1
-                offset = index + 1
-                dist_matrix[:, index] = np.inf
-
-        predictions = []
-        N = hankel_matrix.shape[1]
-
-        KNNs_per_dim = []
-        weights_per_dim = []
-        targets_per_dim = []
-        predicted_per_dim = []
-
-        # for all target points, get dim+1 nearest neighbors and make one-step-ahead prediction (weighted average)
-        if method == 'standard':
-            targets = range(N - 1)
-
-        for target in targets:
-
-            # Exclude target point and last point
-            # by temporarily setting their value to infinity
-            dist_to_target = dist_matrix[target, :]
-            if target == 0:
-                dist_to_target[0] = np.inf
-            else:
-                dist_to_target[target] = np.inf
-            if method == 'standard':
-                dist_to_target[N - 1] = np.inf
-
-            # Select E + 1 nearest neigbors
-            nearest_neighbors = np.argpartition(dist_to_target, (0, dim + 2))
-            nearest_neighbors = np.arange(N)[nearest_neighbors[0:dim + 1]]
-            min_distance = dist_to_target[nearest_neighbors[0]]
-
-            weighted_average = 0
-            total_weight = 0
-            weights = []
-
-            if min_distance == 0:
-                for neighbor in nearest_neighbors:
-                    if dist_to_target[neighbor] == 0:
-                        weight = 1
-                    else:
-                        weight = 0.000001
-                    next_val = hankel_matrix[0, neighbor + 1]
-                    weighted_average += next_val * weight
-                    total_weight += weight
-                    weights.append(weight)
-
-            else:
-                for neighbor in nearest_neighbors:
-                    # Add next value to weighted average
-                    next_val = hankel_matrix[0, neighbor + 1]
-                    weight = np.exp(-dist_to_target[neighbor] / min_distance)
-                    weighted_average += next_val * weight
-                    total_weight += weight
-                    weights.append(weight)
-
-            weighted_average = weighted_average / total_weight
-
-            predictions.append(weighted_average)
-
-            # Save weights and KNNs for plotting if this dim is the optimal dim
-            if target in [3, int((N - 2) / 2), N - 3]:
-                weights_per_dim.append(weights)
-                KNNs_per_dim.append(nearest_neighbors)
-                targets_per_dim.append(target)
-                predicted_per_dim.append(weighted_average)
-
-            # TODO: in book, they have a minimum weight of 0.000001 (why?)
-
-        # Pearson Correlation Coefficient
-        if method == 'standard':
-            observations = hankel_matrix[0, 1:]
-        elif method == 'fleur':
-            observations = []
-            for target in targets:
-                observations.append(hankel_matrix[0, target])
-
-        cor = pearsonr(observations, predictions)[0]
-        cor_list.append(cor)
-
-        # Mean Absolute Error
-        mae = mean(abs(np.subtract(observations, predictions)))
-        mae_list.append(mae)
-
-        # Root Mean Squared Error
-        mse = mean(np.square(np.subtract(observations, predictions)))
-        rmse = math.sqrt(mse)
-        rmse_list.append(rmse)
-
-        if cor >= optimal_cor:
-            optimal_cor = cor
-            optimal_predictions = predictions
-            optimal_dim = dim
-            optimal_targets = targets
-
-            weights_for_plotting = weights_per_dim
-            KNNs_for_plotting = KNNs_per_dim
-            targets_for_plotting = targets_per_dim
-            predicted_for_plotting = predicted_per_dim
-
-    plot_performance_simplex(cor_list, mae_list, rmse_list)
-
-    # Plot predicted values against actual values for optimal E
-    if method == 'standard':
-        hankel_matrix = create_hankel_matrix(ts, lag, E=optimal_dim)
-        observations = hankel_matrix[0, 1:]
-
-    elif method == 'fleur':
-        hankel_matrix = np.array([]).reshape(optimal_dim + 1, 0)
-        for i in range(len(ts)):
-            hankel_matrix_i = create_hankel_matrix(ts[i], lag, E=optimal_dim)
-            print(np.shape(hankel_matrix_i)[1])
-            hankel_matrix = np.hstack((hankel_matrix, hankel_matrix_i))
-
-        observations = []
-        for target in optimal_targets:
-            observations.append(hankel_matrix[0, target])
-
-    xmin = min(min(optimal_predictions), min(observations))
-    xmax = max(max(optimal_predictions), max(observations))
-
-    xmin = xmin - 0.1 * np.abs(xmin)
-    xmax = xmax + 0.1 * np.abs(xmax)
-    plt.xlim((xmin, xmax))
-    plt.ylim((xmin, xmax))
-
-    plt.plot([xmin, xmax], [xmin, xmax], color='black')
-    plt.scatter(observations, optimal_predictions, color='black')
-
-    plt.xlabel("Observed values")
-    plt.ylabel("Predicted values")
-    plt.title("Simplex results for E = " + str(np.argmax(cor_list) + 1))
-
-    plt.show()
-
-    if method == 'standard':
-        plot_results_simplex(ts,
-                             targets_for_plotting,
-                             KNNs_for_plotting,
-                             predicted_for_plotting,
-                             lag, optimal_dim)
-
-    return optimal_dim
+    return results
 
 
-# TODO: dont consider any point that has the target in its embedding vector
-# TODO: add singular value decomposition?
-# TODO: p-step ahead predictions
-def smap(ts, lag=1, E=1):
-    hankel_matrix = create_hankel_matrix(ts, lag, E)
-    dist_matrix = create_distance_matrix(hankel_matrix)
-    targets = range(hankel_matrix.shape[1] - 1)
+def smap_loop(ts, lag, E, val_method ="LB", val_int = None):
 
-    if method == "fleur":
-        targets = list()
-        offset = 1
-        hankel_matrix = np.array([]).reshape(E + 1, 0)
-        for i in range(len(ts)):
-            hankel_matrix_i = create_hankel_matrix(ts[i], lag, E)
-            N_i = hankel_matrix_i.shape[1]
-            targets = targets + list(range(offset, offset + N_i - 1))
-            offset += N_i
-            hankel_matrix = np.hstack((hankel_matrix, hankel_matrix_i))
+    if val_method == "LB" and val_int == None:
+        val_int = 50
 
-        dist_matrix = create_distance_matrix(hankel_matrix)
-        # set distances to last values of a time series to infinity
-        offset = 0
-        for i in range(len(ts)):
-            index = offset + len(ts[i]) - E * lag - 1
-            offset = index + 1
-            dist_matrix[:, index] = np.inf
+    results = dict()
+    results['corr'], results['theta'] = 0, None
+    results['corr_list'], results['mae_list'], results['rmse_list'] = [], [], []
 
-    # set distances of diagonal to infinity
-    ind = np.diag_indices_from(dist_matrix)
-    dist_matrix[ind] = np.inf
+    lib = embed_time_series(ts, lag, E)
 
-    N = hankel_matrix.shape[1]
-    cor_list = []
-    mae_list = []
-    rmse_list = []
-
-    optimal_cor = 0
-    optimal_theta = 0
-    optimal_predictions = []
-
-    targets_for_plotting = []
-    weights_for_plotting = []
-    predictions_for_plotting = []
-    neighbors_for_plotting = []
+    # last block validation
+    if val_method != "CV":
+        split = int(np.ceil(val_int / 100 * len(lib)))
+        training_set = lib[:split]
+        test_set = lib[split:]
 
     for theta in range(11):
 
-        targets_per_theta = []
-        weights_per_theta = []
-        predictions_per_theta = []
-        predictions = []
-
-        # Make a one-step-ahead prediction for all points in state space
-        # except the last observed point
-        for target in range(len(targets)):
-            distances = dist_matrix[target, :-1]  # Exclude last point
-            # distances[target] = np.inf
-            distances_no_inf = distances[distances < np.inf]
-
-            # if d_m == 0:
-            #    #TODO: work out this scenario
-            #    print('Distance to all points is zero.')
-            #    return 0
-
-            # Calculate weights
-            mean_dist = mean(distances_no_inf)
-            weights = np.exp(-theta * distances_no_inf / mean_dist)
-            next_vals = hankel_matrix[0, 1:]
-            next_vals = list(itertools.compress(next_vals, distances < np.inf))
-
-            B = np.multiply(weights, next_vals)
-            A = np.empty((len(weights),))
-
-            # Fill A
-            for i in range(1, E + 1):
-                prev_value = hankel_matrix[i, :-1]
-                prev_value = list(itertools.compress(prev_value, distances < np.inf))
-                new_column = np.multiply(weights, prev_value)
-                A = np.vstack((A, new_column))
-
-            # Calculate coefficients C using the pseudo-inverse of A (via SVD)
-            A = np.transpose(A)
-            coeffs = np.matmul(np.linalg.pinv(A), B)
-
-            # Make prediction
-            next_val = np.matmul(hankel_matrix[:, target], coeffs)
-
-            # weights[dist_matrix[target, :-1] == np.inf] = 0
-            # weights[target] = 0
-            # next_val = np.dot(weights, np.transpose(hankel_matrix[0, 1:])) / sum(weights)
-            predictions.append(next_val)
-
-            if target in [targets[2], targets[int(len(targets) / 2)], targets[len(targets) - 2]]:
-                targets_per_theta.append(target)
-                weights_per_theta.append(weights)
-                predictions_per_theta.append(predictions[target])
-
-        # Pearson Correlation Coefficient
-        if method == 'standard':
-            observations = hankel_matrix[0, 1:]
-        elif method == 'fleur':
-            observations = []
-            for target in targets:
-                observations.append(hankel_matrix[0, target])
-
-        # Pearson Correlation Coefficient
-        cor = pearsonr(observations, predictions)[0]
-        cor_list.append(cor)
-
-        # Mean Absolute Error
-        mae = mean(abs(np.subtract(observations, predictions)))
-        mae_list.append(mae)
-
-        # Root Mean Squared Error
-        mse = mean(np.square(np.subtract(observations, predictions)))
-        rmse = math.sqrt(mse)
-        rmse_list.append(rmse)
+        if val_method == "CV":
+            result_theta = forecasting_for_cv(lib, val_int, lag, E, theta)
+        else:
+            result_theta = smap_forecasting(training_set, test_set, theta)
 
         # Update optimal predictions
-        if cor >= optimal_cor:
-            optimal_theta = theta
-            optimal_cor = cor
-            optimal_predictions = predictions
+        if result_theta['corr'] > results['corr'] or theta == 1:
+            results['theta'] = theta
+            results['corr'] = result_theta['corr']
+            results['mae'] = result_theta['mae']
+            results['rmse'] = result_theta['rmse']
+            results['observed'] = result_theta['observed']
+            results['predicted'] = result_theta['predicted']
 
-            targets_for_plotting = targets_per_theta
-            weights_for_plotting = weights_per_theta
-            predictions_for_plotting = predictions_per_theta
-            neighbors_for_plotting = dist_matrix < np.inf
-
-    # Show figure of performance plots
-    plt.figure(0)
-    fig, axs = plt.subplots(3, sharex=True)
-    fig.suptitle('Performance measures per Theta')
-
-    axs[0].set_ymargin(0.1)
-    axs[1].set_ymargin(0.1)
-    axs[2].set_ymargin(0.1)
-
-    axs[0].plot(range(0, 11), cor_list, color='black', marker='o')
-    axs[1].plot(range(0, 11), mae_list, color='black', marker='o')
-    axs[2].plot(range(0, 11), rmse_list, color='black', marker='o')
-
-    axs[0].set_ylabel('rho')
-    axs[1].set_ylabel('MAE')
-    axs[2].set_ylabel('RMSE')
-    axs[2].set_xlabel('theta')
-
-    major_tick = range(0, 11)
-    axs[0].set_xticks(major_tick)
-    axs[0].xaxis.grid(which='major')
-    axs[0].xaxis.grid(True)
-    axs[1].xaxis.grid(True)
-    axs[2].xaxis.grid(True)
-
-    axs[0].plot(np.argmax(cor_list), max(cor_list), color='m', marker='D', markersize=7)
-    axs[1].plot(np.argmin(mae_list), min(mae_list), color='m', marker='D', markersize=7)
-    axs[2].plot(np.argmin(rmse_list), min(rmse_list), color='m', marker='D', markersize=7)
-
-    plt.show()
-
-    # Plot predicted values against actual values for optimal theta
-    plt.figure(1)
-    observations = []
-
-    for target in targets:
-        observations.append(hankel_matrix[0, target])
-
-    xmin = min(min(optimal_predictions), min(observations))
-    xmax = max(max(optimal_predictions), max(observations))
-
-    xmin = xmin - 0.1 * np.abs(xmin)
-    xmax = xmax + 0.1 * np.abs(xmax)
-    plt.xlim((xmin, xmax))
-    plt.ylim((xmin, xmax))
-
-    plt.plot([xmin, xmax], [xmin, xmax], color='black')
-    plt.scatter(observations, optimal_predictions, color='black')
-
-    plt.xlabel("Observed values")
-    plt.ylabel("Predicted values")
-    plt.title("Scatter plot for E = " + str(E) + r" and $\theta$ = " + str(optimal_theta))
-
-    plt.show()
+        results['corr_list'].append(result_theta['corr'])
+        results['mae_list'].append(result_theta['mae'])
+        results['rmse_list'].append(result_theta['rmse'])
 
 
-    plot_results_smap(ts,
-                      targets_for_plotting,
-                      weights_for_plotting,
-                      predictions_for_plotting,
-                      neighbors_for_plotting,
-                      lag,
-                      E)
+    return results
 
-    return optimal_theta
+
+def edm(ts, lag, max_E, validation_method, validation_int):
+    results_simplex = simplex_loop(ts, lag, max_E, validation_method, validation_int)
+    results_smap = smap_loop(ts, lag, results_simplex['E'], validation_method, validation_int)
+    return results_smap
+
+
+def kernel(x, y, phi, tau, r):
+    """
+    As described by Munch et al. 20217
+    :param x: embedding vector 1
+    :param y: embedding vector 2
+    :param phi: controls the wiggliness of f in the direction of each time-lag
+    :param tau: controls the prior variance in f at a given point
+    :param L: dimension
+    :param r: max(y) - min(y)
+    :return: covariance between f(x) and f(y)
+    """
+    prod = squared_exponential(phi[0] * abs(x[0] - y[0]) / r)
+    for i in range(1, len(x)):
+        prod *= squared_exponential(phi[i] * abs(x[i] - y[i]) / r)
+    return tau**2 * prod
+
+
+def squared_exponential(d):
+    return exp(-d**2)
+
+
+def gpr_forecasting(lib, X_train, y_train, X_test, y_test):
+
+    kernel = 1 * RBF(length_scale = 1.0, length_scale_bounds=(1e-2, 1e2))
+    model = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=9)
+    model.fit(X_train, y_train)
+
+    y_pred_te, y_pred_te_std = model.predict(X_test, return_std=True)
+
+    results = dict()
+    results['observed'] = y_test
+    results['predicted'] = y_pred_te
+    results['std'] = y_pred_te_std
+    results['corr'] = pearsonr(results['observed'], results['predicted'])[0]
+    results['mae'] = mean(abs(np.subtract(results['observed'], results['predicted'])))
+    results['rmse'] = math.sqrt(mean(np.square(np.subtract(results['observed'], results['predicted']))))
+
+    return results
+
+
+def gpr(ts, lag, E, val_method, val_int = None):
+
+    if val_method == "LB" and val_int == None:
+        val_int = 50
+
+    lib = embed_time_series(ts, lag, E)
+
+    if val_method == "CV":
+        #result = forecasting_for_cv(lib, val_int, lag, E, method="gpr")
+        #TODO: implement method="GPR" in forecasting_for_cv
+        print("k-fold cross validation")
+
+    else:
+        split = int(np.ceil(val_int / 100 * len(lib)))
+        training_set = lib[:split]
+        test_set = lib[split:]
+
+        X_train = np.array([item[0] for item in training_set])
+        X_test = np.array([item[0] for item in test_set])
+        y_train = np.array([item[1] for item in training_set])
+        y_test = np.array([item[1] for item in test_set])
+
+        result = gpr_forecasting(lib, X_train=X_train, y_train=y_train, X_test=X_test, y_test=y_test)
+
+        lim_min = min(min(result['observed']), min(result['predicted'])) - 0.1
+        lim_max = max(max(result['observed']), max(result['predicted'])) + 0.1
+
+        for target in range(len(result['predicted'])):
+            x = result['observed'][target]
+            y_min = result['predicted'][target] - result['std'][target]
+            y_max = result['predicted'][target] + result['std'][target]
+            plt.plot((x, x), (y_min, y_max), linewidth=4, color='b', alpha=.15)
+
+        plt.plot([lim_min, lim_max], [lim_min, lim_max], linewidth=1, color='black', linestyle='--')
+        plt.scatter(result['observed'], result['predicted'])
+
+        plt.xlim((lim_min,lim_max))
+        plt.ylim((lim_min, lim_max))
+        plt.xlabel('observed')
+        plt.ylabel('predicted')
+        plt.title("Forecasting performance GPR")
+        plt.show()
+
+    return 0
 
 
 if __name__ == "__main__":
-    b = [1,2,3,4,5,6,7,8,9,10]
-    train, test = make_libraries([a,b], 1, 3)
-    distances = create_distance_matrix(train, test)
 
-    #a = np.array(a)
-    b = np.array(b)
-    #train, test = make_libraries([a, b], 1, 3)
-    #distances = create_distance_matrix(train, test)
+    a = np.sin(np.arange(1, 1000, 5)/100.0)
+    a = [item + random.random()/10.0 for item in a]
+
+    plt.plot(np.arange(len(a)), a)
+    plt.scatter(np.arange(len(a)), a)
+    plt.title("time series plot")
+    plt.show()
+
+    gpr(a, 1, 5, "LB", 50)
+
+    # smap_results = smap_loop(a, lag=1, E=2, val_method="CV", val_int=20)
+    #
+    # plt.plot(np.arange(0,11), smap_results['corr_list'])
+    # plt.scatter(np.arange(0, 11), smap_results['corr_list'])
+    # plt.xlabel('theta')
+    # plt.ylabel('rho')
+    # plt.show()
+    #
+    # xlim = [min(smap_results['observed']), max(smap_results['observed'])]
+    # ylim = [min(smap_results['predicted']), max(smap_results['predicted'])]
+    # plt.plot(xlim, ylim, color='black', linewidth=1, linestyle='--')
+    # plt.scatter(smap_results['observed'], smap_results['predicted'])
+    # plt.xlabel('observed')
+    # plt.ylabel('predicted')
+    # plt.title("Forecasting performance (theta = " + str(smap_results['theta'])+")")
+    # plt.show()
+
+    #TODO: for cross validation, do not calculate CORR, RMSE, MAE first and then aggregate, but collect all observations
+    # and predictions, then calculate these measures. Otherwise LOO-CV doesn't work.

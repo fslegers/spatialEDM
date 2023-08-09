@@ -30,7 +30,7 @@ def univariate_simulations(ts_length=100, noise=0.0, step_size=10, n_iter=10):
 
         # Perform EDM
         dim = simplex_projection(ts, lag=tau, max_E=sqrt(ts_length))
-        smap(ts, lag=tau, E=dim)
+        smap_loop(ts, lag=tau, E=dim)
 
         counter += 1
 
