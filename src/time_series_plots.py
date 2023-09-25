@@ -51,6 +51,7 @@ def plot_time_series(time_series, obs_times = default, filename = ""):
 
     plt.show()
 
+
 def plot_embedding(time_series, E = 2, lag = 1, filename = ""):
     if(E <= 1 or E > 2):
         print("Cannot plot embedding of dimension ", str(E))
@@ -82,6 +83,7 @@ def plot_embedding(time_series, E = 2, lag = 1, filename = ""):
             mlab.savefig(filename = "plot_embedding_" + filename)
 
         mlab.close()
+
 
 def plot_recurrence(time_series, delay = 1, eps = 0.05, filename = ""):
     """
@@ -124,8 +126,10 @@ def plot_recurrence(time_series, delay = 1, eps = 0.05, filename = ""):
         print("An exception occurred. Are you sure time_delay is an integer"
               " and threshold a double?")
 
+
 #TODO
 #Joint Recurrence Plot
+
 
 def plot_autocorrelation(time_series, filename = ""):
     """
@@ -173,6 +177,7 @@ def plot_autocorrelation(time_series, filename = ""):
 
     return optimal_lag
 
+
 def plot_partial_autocorrelation(time_series, filename = ""):
     """
         Plots the partial autocorrelation function of the time series.
@@ -194,6 +199,7 @@ def plot_partial_autocorrelation(time_series, filename = ""):
         plt.savefig("../results/figures/plot_pacf_" + filename)
 
     plt.show()
+
 
 def plot_correlation(x, y, window_size = 0, filename = ""):
     """
@@ -229,6 +235,7 @@ def plot_correlation(x, y, window_size = 0, filename = ""):
 
     plt.show()
 
+
 def make_lag_scatterplot(time_series, lag = 1, filename = ""):
     x = time_series[lag:]
     y = time_series[:-lag]
@@ -242,6 +249,7 @@ def make_lag_scatterplot(time_series, lag = 1, filename = ""):
         plt.savefig('scatterplot_'+filename)
 
     plt.show()
+
 
 def make_3d_plot(x, y, z, filename = "", tube_radius = 0.1, colors = "PuRd"):
     """
@@ -262,6 +270,7 @@ def make_3d_plot(x, y, z, filename = "", tube_radius = 0.1, colors = "PuRd"):
 
     mlab.show()
 
+
 def example_mayavi():
     n_mer, n_long = 6, 11
     dphi = np.pi / 1000.0
@@ -274,6 +283,7 @@ def example_mayavi():
     mlab.plot3d(x_, y_, z_, np.sin(mu), tube_radius=0.025, colormap='Spectral')
     mlab.show()
 
+
 if __name__ == "__main__":
-    host_parasitoid = simulate_host_parasitoid(t_max=100)
-    plot_time_series(np.array(host_parasitoid))
+    trajectory = simulate_lorenz()
+    plot_time_series(np.array(trajectory))

@@ -1,143 +1,190 @@
-from deeptime import data
-import numpy as np
-from mpl_toolkits.mplot3d.art3d import Line3DCollection
 from time_series_plots import *
+from scipy import integrate
+from matplotlib import pyplot as plt
+import numpy as np
 
-def simulate_lorenz(vec0 = np.array([0, 1, 1.05]), delta_t = 2e-5, t_max = 100, noise = 0):
-    """
-    Simulates a lorenz trajectory from initial point vec0, with time steps of size delta_t
-    until time t_max.
-    :type vec0: a numpy array of size 3
-    :param vec0: vector that describes the initial state of the system
-    :param delta_t: step size
-    :param t_max: maximum time
-    :param noise: amount of gaussian noise that is added to each coordinate of the trajectory
-    :return: trajectory of x, y and z coordinates
-    """
-    # Check if vec0 is correct
-    if isinstance(vec0, np.ndarray) and len(vec0) == 3:
-        pass
-    else:
-        print("vec0 is not a np.array of size 3. Changing to [1,1,1].")
-        vec0 = np.array([1, 1, 1])
 
-    # initialize dynamical system
-    system = data.lorenz_system(h = delta_t)
+def derivative_lv(X, t, alpha, beta, delta, gamma):
+    x, y = X
+    dotx = alpha * x - beta * x * y
+    doty = -delta * y + gamma * x * y
+    return np.array([dotx, doty])
 
-    # integrate system from starting point
-    trajectory = system.trajectory(vec0, t_max)
 
-    # add random noise
-    noise_array = np.random.normal(0.0, noise, size = trajectory.shape)
-    trajectory = trajectory + noise_array
+def derivative_lorenz(X, t, sigma, rho, beta):
+    x, y, z = X
+    dotx = sigma*(y-x)
+    doty = x*(rho-z)-y
+    dotz = x*y - beta*z
+    return np.array([dotx, doty, dotz])
 
-    return trajectory
 
-def simulate_thomas(vec0 = np.array([1, 1, 1]), delta_t = 2e-5, t_max = 100, noise = 0):
-    """
-        Simulates a thomas trajectory from initial point vec0, with time steps of size delta_t
-        until time t_max.
-        :type vec0: a numpy array of size 3
-        :param vec0: vector that describes the initial state of the system
-        :param delta_t: step size
-        :param t_max: maximum time
-        :param noise: amount of gaussian noise that is added to each coordinate of the trajectory
-        :return: trajectory of x, y and z coordinates
-    """
-    # Check if vec0 is correct
-    if isinstance(vec0, np.ndarray) and len(vec0) == 3:
-        pass
-    else:
-        print("vec0 is not a np.array of size 3. Changing to [1,1,1].")
-        vec0 = np.array([1, 1, 1])
+def simulate_lotka_volterra(vec0 = np.array([4,2]),
+                            alpha=1, beta=1, delta=1, gamma=1,
+                            ntimesteps=1000, tmax=30,
+                            obs_noise_sd=0):
 
-    # initialize dynamical system
-    system = data.thomas_attractor(h = delta_t)
+    # TODO: add process noise?
 
-    # integrate system from starting point
-    trajectory = system.trajectory(vec0, t_max)
+    # Simulate trajectories of Lotka Volterra
+    t = np.linspace(0, tmax, ntimesteps)
+    res = integrate.odeint(derivative_lv, vec0, t, args = (alpha, beta, delta, gamma))
+    x, y = res.T
 
-    # add random noise
-    noise_array = np.random.normal(0.0, noise, size=trajectory.shape)
-    trajectory = trajectory + noise_array
+    # Add obervation noise
+    obs_noise = np.random.normal(loc=0.0, scale=obs_noise_sd, size=(2,len(x)))
+    x += obs_noise[0,]
+    y += obs_noise[1,]
 
-    return trajectory
+    return(x,y,t)
 
-def simulate_additive_white_noise(delta_t = 2e-5, t_max = 100, noise = 0.05):
-    level = 0
-    timer = 0
-    trajectory = []
-    while(timer < t_max):
-        trajectory.append(level)
-        level += np.random.normal(0, noise)
-        timer += delta_t
-    return np.array(trajectory)
 
-def simulate_host_parasitoid(vec0 = np.array([1,1]), t_max = 100, r = 7, gamma = 0.5, alpha = 2):
-    trajectory_N = [vec0[0]] # Keep track of trajectories of hosts
-    trajectory_P = [vec0[1]] # and parasitoids
+def simulate_lorenz(vec0 = np.array([1,1,1]),
+                      params = np.array([10, 28, 8.0/3.0]),
+                      ntimesteps = 1000, tmax = 30,
+                      obs_noise_sd=0):
 
-    N_t = vec0[0] #Hosts
-    P_t = vec0[1] #Parasitoids
-    counter = 0
-    while counter < t_max:
-        # Update rules
-        delta_N = r * N_t * np.exp(-N_t-gamma*P_t)
-        delta_P = alpha * N_t * np.exp(-N_t) * (1 - np.exp(-gamma*P_t))
-        N_t += delta_N
-        P_t += delta_P
+    # TODO: add process noise?
 
-        # Add to trajectories
-        trajectory_N.append(N_t)
-        trajectory_P.append(P_t)
+    t = np.linspace(0, tmax, ntimesteps)
+    res = integrate.odeint(derivative_lorenz, vec0, t, args=(params[0], params[1], params[2]))
+    x, y, z = res.T
 
-        counter += 1
+    # Add obervation noise
+    obs_noise = np.random.normal(loc=0.0, scale=obs_noise_sd, size=(3,len(x)))
+    x += obs_noise[0,]
+    y += obs_noise[1,]
+    z += obs_noise[2,]
 
-    return [trajectory_N, trajectory_P]
+    return [x,y,z,t]
 
-    #Implemented without noise term
 
-def plot_dynamical_system(name = "Lorenz", which_var = 0,
-                          delta_t = 2e-5, t_max = 1000, noise = 0.05,
-                          tube_radius = 0.1, colors = "PuRd"):
-    """
-    Function that executes all plotting consecutively.
-    :param name: determines which dynamical system is simulated.
-    :param which_var: determines which variable of the system is plotted.
-    :param delta_t: time steps of the system integration.
-    :param t_max: how long the simulation runs.
-    :param noise: determines how much noise is added to the trajectory.
-    :param tube_radius: tube thickness in the 3D plot.
-    :param colors: colors in the 3D plot.
-    """
-    if(name == "Lorenz"):
-        trajectory = simulate_lorenz(vec0=np.array([1, 2, 3]), delta_t=delta_t, t_max=t_max, noise=noise)
-        time_series = trajectory[:, which_var]
-        make_3d_plot(trajectory[:,0], trajectory[:,1], trajectory[:,2],
-                     filename="lorenz", tube_radius=tube_radius, colors=colors)
+def simulate_spatial_lorenz(init_points, init_params,
+                           ntimesteps = 1000, tmax = 30,
+                           obs_noise_sd=0):
 
-    elif(name == "Thomas"):
-        trajectory = simulate_thomas(vec0=np.array([1, 2, 3]), delta_t=delta_t, t_max=t_max, noise=noise)
-        time_series = trajectory[:, which_var]
-        make_3d_plot(trajectory[:, 0], trajectory[:, 1], trajectory[:, 2],
-                     filename="thomas", tube_radius=tube_radius, colors=colors)
+    # TODO: Now, there has to be the same number of init_points as init_params
+    # but we also want to be able to keep one constant and not the other
 
-    else:
-        time_series = simulate_additive_white_noise(delta_t=2e-3, t_max=4, noise=0.1)
-        time_series = np.ndarray.transpose(np.array(time_series))
+    n_plots = min(len(init_points), 4)
+    fig, axs = plt.subplots(n_plots)
 
-    plot_time_series(time_series, filename=name)
-    plot_autocorrelation(time_series, filename=name)
-    #plot_recurrence(time_series, delay=1, eps=0.5, filename=name)
-    plot_partial_autocorrelation(time_series, filename=name)
+    all_trajectories = []
+
+    for i in range(len(init_points)):
+
+        init_point = init_points[i]
+        init_param = init_params[i]
+
+        trajectories_i = simulate_lorenz(vec0=init_point,
+                                       params=init_param,
+                                       ntimesteps=ntimesteps,
+                                       tmax=tmax,
+                                       obs_noise_sd=obs_noise_sd)
+
+        trajectories_i.append(init_param)
+        all_trajectories.append(trajectories_i)
+
+        # Plot x variabele van de eerste 4 tijdreeksen
+        if i < n_plots:
+            label = "[" + "%0.2f" % init_point[0] + ", %0.2f" % init_point[1] + ", %0.2f" % init_point[2] + "] \n" + \
+                    r"$\sigma$" + "= %0.2f" % init_param[0] + "\n" + r"$\rho$" + "= %0.2f" % init_param[1] + "\n" + \
+                    r"$\beta$" + "= %0.2f" % init_param[2]
+            axs[i].plot(trajectories_i[3], trajectories_i[0], label=label)
+            axs[i].legend(loc=2, prop={'size': 5.9})
+
+    for ax in axs[:-1]:
+        ax.set_xticks([])
+
+    fig.show()
+
+    return all_trajectories
+
 
 if __name__ == "__main__":
-    #lorenz_trajectory = simulate_lorenz(t_max = 1000)
-    #thomas_trajectory = simulate_thomas(vec0=np.array([1,2,3]),delta_t = 1, t_max = 50)
-    #white_noise_trajectory = simulate_additive_white_noise(t_max = 200)
 
-    #plot_correlation(lorenz_trajectory[:,0],lorenz_trajectory[:,1], window_size=10,filename="Lorenz xy")
-    #plot_correlation(lorenz_trajectory[:,1], lorenz_trajectory[:,2], window_size=10, filename="Lorenz yz")
-    #plot_correlation(lorenz_trajectory[:,0], lorenz_trajectory[:,2], window_size=10, filename="Lorenz xz")
+    init_points = [np.array([1,1,1])]
+    init_params = [np.array([10, 28, 8.0/3.0])]
 
-    plot_dynamical_system(name = "Thomas", which_var = 0, delta_t = 0.02, t_max=1)
+    for i in range(4):
+        vec0 = np.random.uniform(0.0, 4.0, 3)
+
+        # Code for uniformly distr. parameters
+        #sigma0 = np.random.normal(10.0, 1.0)
+        #rho0 = np.random.normal(28.0, 2.0)
+        #beta0 = np.random.normal(8.0/3.0, 1.0)
+        #param0 = np.array([sigma0, rho0, beta0])
+
+        # Code for same parameters
+        param0 = np.array([10, 28, 8.0/3.0])
+
+        init_points.append(vec0)
+        init_params.append(param0)
+
+    simulate_spatial_lorenz(init_points, init_params)
+
+    # fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2,2)
+    #
+    # x, y, z, t = simulate_lorenz(obs_noise_sd=0.0)
+    # ax1.plot(t, x, label="x")
+    # ax1.plot(t, y, label="y")
+    # ax1.plot(t, z, label="z")
+    # ax1.set_title(r'$\alpha$' + "= 0.0", verticalalignment='bottom')
+    #
+    # x, y, z, t = simulate_lorenz(obs_noise_sd=2.5)
+    # ax2.plot(t, x, label="x")
+    # ax2.plot(t, y, label="y")
+    # ax2.plot(t, z, label="z")
+    # ax2.set_title(r'$\alpha$' + "= 2.5", verticalalignment='bottom')
+    #
+    # x, y, z, t = simulate_lorenz(obs_noise_sd=5.0)
+    # ax3.plot(t, x, label="x")
+    # ax3.plot(t, y, label="y")
+    # ax3.plot(t, z, label="z")
+    # ax3.set_title(r'$\alpha$' + "= 5.0", verticalalignment='bottom')
+    #
+    # x, y, z, t = simulate_lorenz(obs_noise_sd=7.5)
+    # ax4.plot(t, x, label="x")
+    # ax4.plot(t, y, label="y")
+    # ax4.plot(t, z, label="z")
+    # ax4.set_title(r'$\alpha$' + "= 7.5", verticalalignment='bottom')
+    #
+    # for ax in fig.get_axes():
+    #     ax.label_outer()
+    #
+    # fig.suptitle("Lorenz system with observation noise", verticalalignment='top')
+    # fig.tight_layout()
+    #
+    # ##############################################################################
+    #
+    # fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
+    #
+    # x, y,t = simulate_lotka_volterra(obs_noise_sd=0.0)
+    # ax1.plot(t, x, label="x")
+    # ax1.plot(t, y, label="y")
+    # ax1.set_title(r'$\alpha$' + "= 0.0", verticalalignment='bottom')
+    #
+    # x, y, t = simulate_lotka_volterra(obs_noise_sd=0.25)
+    # ax2.plot(t, x, label="x")
+    # ax2.plot(t, y, label="y")
+    # ax2.set_title(r'$\alpha$' + "= 0.25", verticalalignment='bottom')
+    #
+    # x, y, t = simulate_lotka_volterra(obs_noise_sd=0.5)
+    # ax3.plot(t, x, label="x")
+    # ax3.plot(t, y, label="y")
+    # ax3.set_title(r'$\alpha$' + "= 0.5", verticalalignment='bottom')
+    #
+    # x, y, t = simulate_lotka_volterra(obs_noise_sd=1.5)
+    # ax4.plot(t, x, label="x")
+    # ax4.plot(t, y, label="y")
+    # ax4.set_title(r'$\alpha$' + "= 1.5", verticalalignment='bottom')
+    #
+    # for ax in fig.get_axes():
+    #     ax.label_outer()
+    #
+    # fig.suptitle("Lotka Volterra with observation noise", verticalalignment='top')
+    # fig.tight_layout()
+    #
+    # fig.show()
+
+

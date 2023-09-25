@@ -1,16 +1,15 @@
 import math
-import itertools
-import matplotlib.cm
+
+import matplotlib.pyplot as plt
 from pyEDM import *
 from scipy.stats import pearsonr
 from preprocessing import *
-from src.create_dummy_time_series import simulate_lorenz
-from src.time_series_plots import plot_time_series
 import random
-
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF
-from sklearn.metrics import r2_score
+from matplotlib.ticker import MaxNLocator
+from create_dummy_time_series import *
+
 
 def create_hankel_matrix(ts, lag=1, E=2):
     """
@@ -65,7 +64,7 @@ def embed_time_series(ts, lag=1, E=2):
         try:
             np.shape(ts)[1]
         except:
-            ts = np.reshape(ts, (1,100))
+            ts = np.reshape(ts, (1,len(ts)))
 
 
     for series in range(len(ts)):
@@ -77,6 +76,52 @@ def embed_time_series(ts, lag=1, E=2):
             lib.append(tuple)
 
     return lib
+
+
+def plot_results(results, method):
+
+    # Performance measures per E or theta
+    fig, axs = plt.subplots(3, sharex=True)
+    fig.suptitle(method + "\n Performance measures")
+
+    x = np.arange(1, len(results['corr_list'])+1)
+
+    axs[0].plot(x, results['corr_list'])
+    axs[0].scatter(x, results['corr_list'])
+    axs[0].set_ylabel("rho")
+
+    axs[1].plot(x, results['mae_list'])
+    axs[1].scatter(x, results['mae_list'])
+    axs[1].set_ylabel("MAE")
+
+    axs[2].plot(x, results['rmse_list'])
+    axs[2].scatter(x, results['rmse_list'])
+    axs[2].set_ylabel("RMSE")
+
+    if method == "simplex":
+        fig.supxlabel("E")
+    else:
+        fig.supxlabel("theta")
+
+    axs[2].xaxis.set_major_locator(MaxNLocator(integer=True))
+
+    fig.show()
+
+    # Observed vs predictions
+    fig2, axs2 = plt.subplots()
+
+    axs2.scatter(results['observed'], results['predicted'])
+    min_ = min([min(results['observed']), min(results['predicted'])])
+    max_ = max([max(results['observed']), max(results['predicted'])])
+    axs2.plot([min_, max_], [min_, max_])
+    fig2.suptitle(method + "\n Observed vs Predicted")
+    axs2.set_xlabel("Observed")
+    axs2.set_ylabel("Predicted")
+    #plt.show()
+
+    fig2.show()
+
+    return 0
 
 
 def simplex_forecasting(training_set, test_set, lag, dim):
@@ -100,18 +145,18 @@ def simplex_forecasting(training_set, test_set, lag, dim):
 
         # Calculate weighted sum of next value
         for neighbor in nearest_neighbors:
-           if min_distance == 0:
-               if dist_to_target[neighbor] == 0:
-                   weight = 1
-               else:
-                   weight = 0.000001
-           else:
-               weight = np.exp(-dist_to_target[neighbor] / min_distance)
+            if min_distance == 0:
+                if dist_to_target[neighbor] == 0:
+                    weight = 1
+                else:
+                    weight = 0.000001
+            else:
+                weight = np.exp(-dist_to_target[neighbor] / min_distance)
 
-           next_val = training_set[neighbor][1]
-           weighted_average += next_val * weight
-           total_weight += weight
-           weights.append(weight)
+            next_val = training_set[neighbor][1]
+            weighted_average += next_val * weight
+            total_weight += weight
+            weights.append(weight)
 
         # Calculate weighted average
         weighted_average = weighted_average / total_weight
@@ -163,7 +208,7 @@ def smap_forecasting(training_set, test_set, theta):
     # Calculate performance measures
     results['corr'] = pearsonr(results['observed'], results['predicted'])[0]
     results['mae'] = mean(abs(np.subtract(results['observed'], results['predicted'])))
-    results['rmse'] = math.sqrt(mean(np.square(np.subtract(results['observed'], results['predicted']))))
+    results['rmse'] = math.sqrt(mean(np.square(np.subtract(results['observed'],results['predicted']))))
 
     return results
 
@@ -208,7 +253,7 @@ def forecasting_for_cv(lib, k, lag, E, method):
     return results
 
 
-def simplex_loop(ts, lag, max_E = 10, val_method ="LB", val_int = None):
+def simplex_projection(ts, lag, max_E = 10, val_method ="LB", val_int = None):
 
     if val_method == "LB" and val_int == None:
         val_int = 50
@@ -217,8 +262,14 @@ def simplex_loop(ts, lag, max_E = 10, val_method ="LB", val_int = None):
     results['corr'], results['E'] = 0, None
     results['corr_list'], results['mae_list'], results['rmse_list'] = [], [], []
 
-    for E in range(1, max_E + 1):
+    E = 1
+    while E < max_E + 1:
         lib = embed_time_series(ts, lag, E)
+
+        # make sure max_E is not too large
+        if max_E > np.sqrt(len(lib)):
+            max_E = int(np.floor(np.sqrt(len(lib))))
+            print("max_E too large. Changing to " + str(max_E) + ".")
 
         if val_method == "CV": # k-fold cross validation
             result_E = forecasting_for_cv(lib, val_int, lag, E, method="simplex")
@@ -239,12 +290,15 @@ def simplex_loop(ts, lag, max_E = 10, val_method ="LB", val_int = None):
             results['observed'] = result_E['observed']
             results['predicted'] = result_E['predicted']
 
-    print("Optimal dimension found by Simplex is E = " + str(results['E']) + " (phi = " + str(results['corr']) + ")")
+        E += 1
+
+    print("Optimal dimension found by Simplex is E = " + str(results['E']) +
+          " (phi = " + str(results['corr']) + ")")
 
     return results
 
 
-def smap_loop(ts, lag, E, val_method ="LB", val_int = None):
+def smap(ts, lag, E, val_method ="LB", val_int = None):
 
     if val_method == "LB" and val_int == None:
         val_int = 50
@@ -281,130 +335,89 @@ def smap_loop(ts, lag, E, val_method ="LB", val_int = None):
         results['mae_list'].append(result_theta['mae'])
         results['rmse_list'].append(result_theta['rmse'])
 
-
     return results
 
 
 def edm(ts, lag, max_E, validation_method, validation_int):
-    results_simplex = simplex_loop(ts, lag, max_E, validation_method, validation_int)
-    results_smap = smap_loop(ts, lag, results_simplex['E'], validation_method, validation_int)
+
+    results_simplex = simplex_projection(ts, lag, max_E, validation_method, validation_int)
+    plot_results(results_simplex, "simplex")
+
+    results_smap = smap(ts, lag, results_simplex['E'], validation_method, validation_int)
+    plot_results(results_smap, "s-map")
+
+    print("Optimal theta found by S-map is " + str(results_smap['theta']) + " (phi = " + str(results_smap['corr']) + " )")
+
     return results_smap
 
 
-def kernel(x, y, phi, tau, r):
-    """
-    As described by Munch et al. 20217
-    :param x: embedding vector 1
-    :param y: embedding vector 2
-    :param phi: controls the wiggliness of f in the direction of each time-lag
-    :param tau: controls the prior variance in f at a given point
-    :param L: dimension
-    :param r: max(y) - min(y)
-    :return: covariance between f(x) and f(y)
-    """
-    prod = squared_exponential(phi[0] * abs(x[0] - y[0]) / r)
-    for i in range(1, len(x)):
-        prod *= squared_exponential(phi[i] * abs(x[i] - y[i]) / r)
-    return tau**2 * prod
-
-
-def squared_exponential(d):
-    return exp(-d**2)
-
-
-def gpr_forecasting(lib, X_train, y_train, X_test, y_test):
-
-    kernel = 1 * RBF(length_scale = 1.0, length_scale_bounds=(1e-2, 1e2))
-    model = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=9)
-    model.fit(X_train, y_train)
-
-    y_pred_te, y_pred_te_std = model.predict(X_test, return_std=True)
-
-    results = dict()
-    results['observed'] = y_test
-    results['predicted'] = y_pred_te
-    results['std'] = y_pred_te_std
-    results['corr'] = pearsonr(results['observed'], results['predicted'])[0]
-    results['mae'] = mean(abs(np.subtract(results['observed'], results['predicted'])))
-    results['rmse'] = math.sqrt(mean(np.square(np.subtract(results['observed'], results['predicted']))))
-
-    return results
-
-
-def gpr(ts, lag, E, val_method, val_int = None):
-
-    if val_method == "LB" and val_int == None:
-        val_int = 50
-
-    lib = embed_time_series(ts, lag, E)
-
-    if val_method == "CV":
-        #result = forecasting_for_cv(lib, val_int, lag, E, method="gpr")
-        #TODO: implement method="GPR" in forecasting_for_cv
-        print("k-fold cross validation")
-
-    else:
-        split = int(np.ceil(val_int / 100 * len(lib)))
-        training_set = lib[:split]
-        test_set = lib[split:]
-
-        X_train = np.array([item[0] for item in training_set])
-        X_test = np.array([item[0] for item in test_set])
-        y_train = np.array([item[1] for item in training_set])
-        y_test = np.array([item[1] for item in test_set])
-
-        result = gpr_forecasting(lib, X_train=X_train, y_train=y_train, X_test=X_test, y_test=y_test)
-
-        lim_min = min(min(result['observed']), min(result['predicted'])) - 0.1
-        lim_max = max(max(result['observed']), max(result['predicted'])) + 0.1
-
-        for target in range(len(result['predicted'])):
-            x = result['observed'][target]
-            y_min = result['predicted'][target] - result['std'][target]
-            y_max = result['predicted'][target] + result['std'][target]
-            plt.plot((x, x), (y_min, y_max), linewidth=4, color='b', alpha=.15)
-
-        plt.plot([lim_min, lim_max], [lim_min, lim_max], linewidth=1, color='black', linestyle='--')
-        plt.scatter(result['observed'], result['predicted'])
-
-        plt.xlim((lim_min,lim_max))
-        plt.ylim((lim_min, lim_max))
-        plt.xlabel('observed')
-        plt.ylabel('predicted')
-        plt.title("Forecasting performance GPR")
-        plt.show()
-
-    return 0
-
-
 if __name__ == "__main__":
+    # Set parameters
+    E = 5
 
-    a = np.sin(np.arange(1, 1000, 5)/100.0)
-    a = [item + random.random()/10.0 for item in a]
 
-    plt.plot(np.arange(len(a)), a)
-    plt.scatter(np.arange(len(a)), a)
-    plt.title("time series plot")
+    # Simulate the Lorenz System
+    x_, y_, z_, t_ = simulate_lorenz(tmax=80, ntimesteps=3000, obs_noise_sd=0)
+
+
+    # Change sampling interval
+    spin_off = 300
+    sampling_interval = 20
+
+    x = [x_[i] for i in range(1, len(x_)) if i % sampling_interval == 0 and i > spin_off]
+    t = [t_[i] for i in range(1, len(x_)) if i % sampling_interval == 0 and i > spin_off]
+
+
+    # Embed time series
+    lib = embed_time_series(x, lag=1, E=E)
+
+
+    # Split into training and test set (time ordered)
+    cut_off = int(len(lib) * 0.7)
+    X_train = x[:cut_off]
+    X_test = x[cut_off + 1:]
+
+
+    # Plot time series
+    plt.plot(t_, x_, color='grey', linewidth=1, linestyle='--')
+    plt.plot(t, x, color='orange', linewidth=2)
+    plt.scatter(t, x, color='red')
+    plt.axvline(x=t[0], color='red')
+    plt.axvline(x=((t[cut_off] + t[cut_off + 1]) / 2.0), color='red')
+    plt.title('Input time series')
+    #plt.show()
+
+
+    # Print information
+    print("Number of training samples: " + str(len(X_train)))
+    print("Number of test samples: " + str(len(X_test)))
+    print("Sampling interval: " + str(t[1] - t[0]))
+
+
+    results = edm(x, lag=1, max_E=E, validation_method="LB", validation_int=70)
+
+
+    # Plot error over test set
+    fig, axs = plt.subplots(2, sharex=True)
+
+    ax1 = axs[0]
+    ax2 = axs[1]
+
+    ax1.set_xlabel('time')
+    ax1.set_ylabel('x(t) and pred_x(t)')
+    ax1.plot(t[cut_off+1:], x[cut_off+1:], color='grey', linewidth=1, linestyle='--')
+    ax1.scatter(t[-len(results['predicted']):], results['predicted'], color='tab:cyan')
+    ax1.fill_between(t[-len(results['predicted']):], results['predicted'], results['observed'], color='tab:cyan', alpha=0.3)
+
+
+    ax2.set_ylabel('Absolute error')
+    plt.plot(t[-len(results['predicted']):], np.abs(np.array(results['predicted'])-np.array(results['observed'])), color='tab:cyan')
+
+
+    fig.tight_layout()
     plt.show()
 
-    gpr(a, 1, 5, "LB", 50)
 
-    # smap_results = smap_loop(a, lag=1, E=2, val_method="CV", val_int=20)
-    #
-    # plt.plot(np.arange(0,11), smap_results['corr_list'])
-    # plt.scatter(np.arange(0, 11), smap_results['corr_list'])
-    # plt.xlabel('theta')
-    # plt.ylabel('rho')
-    # plt.show()
-    #
-    # xlim = [min(smap_results['observed']), max(smap_results['observed'])]
-    # ylim = [min(smap_results['predicted']), max(smap_results['predicted'])]
-    # plt.plot(xlim, ylim, color='black', linewidth=1, linestyle='--')
-    # plt.scatter(smap_results['observed'], smap_results['predicted'])
-    # plt.xlabel('observed')
-    # plt.ylabel('predicted')
-    # plt.title("Forecasting performance (theta = " + str(smap_results['theta'])+")")
-    # plt.show()
 
     #TODO: for cross validation, do not calculate CORR, RMSE, MAE first and then aggregate, but collect all observations
     # and predictions, then calculate these measures. Otherwise LOO-CV doesn't work.
