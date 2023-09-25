@@ -59,6 +59,17 @@ def simulate_lorenz(vec0 = np.array([1,1,1]),
     return [x,y,z,t]
 
 
+def sample_from_ts(x, t, spin_off, sampling_interval, n_points):
+
+    x_ = [x[i] for i in range(1, len(x)) if i % sampling_interval == 0 and i > spin_off]
+    x  = [x_[i] for i in range(1, len(x_)) if i < n_points]
+
+    t_ = [t[i] for i in range(1, len(t)) if i % sampling_interval == 0 and i > spin_off]
+    t  = [t_[i] for i in range(1, len(t_)) if i < n_points]
+
+    return x, t
+
+
 def simulate_spatial_lorenz(init_points, init_params,
                            ntimesteps = 1000, tmax = 30,
                            obs_noise_sd=0):

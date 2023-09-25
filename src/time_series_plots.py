@@ -10,7 +10,7 @@ from create_dummy_time_series import *
 
 default = object()
 
-def plot_time_series(time_series, obs_times = default, filename = ""):
+def plot_time_series(time_series, obs_times = default, scatter=True, filename = ""):
     """
     Plots the time series. Time series can be a single time series or an array of time series.
     Saves plot if a filename is given.
@@ -20,12 +20,17 @@ def plot_time_series(time_series, obs_times = default, filename = ""):
 
     #check if we are dealing with one or multiple time series
     if len(np.shape(time_series)) == 1 or np.shape(time_series)[1] == 1:
-        # if no observation times are given, create array
-        if obs_times.any() == default:
-            obs_times = np.arange(0, len(time_series))
+        try:
+            plt.plot(obs_times, time_series)
+            if scatter:
+                plt.scatter(obs_times, time_series)
 
-        plt.plot(obs_times, time_series)
-        plt.scatter(obs_times, time_series, marker='o')
+        except:
+            # if no observation times are given, create array
+            if obs_times.any() == default:
+                obs_times = np.arange(0, len(time_series))
+                plt.plot(obs_times, time_series)
+
         plt.xlabel('t')
         plt.ylabel('x')
         if(filename != ""):

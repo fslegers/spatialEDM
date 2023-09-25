@@ -1,13 +1,10 @@
 import math
+import pandas as pd
 
-import matplotlib.pyplot as plt
+from matplotlib.ticker import MaxNLocator
 from pyEDM import *
 from scipy.stats import pearsonr
-from preprocessing import *
-import random
-from sklearn.gaussian_process import GaussianProcessRegressor
-from sklearn.gaussian_process.kernels import RBF
-from matplotlib.ticker import MaxNLocator
+
 from create_dummy_time_series import *
 
 
@@ -78,6 +75,26 @@ def embed_time_series(ts, lag=1, E=2):
     return lib
 
 
+def split_train_test(lib, percentage_train):
+
+    if percentage_train < 10 or percentage_train > 90:
+        percentage_train = 60
+
+    # Split predictor from response variables
+    X, y = [], []
+    for point in lib:
+        X.append(point[0])
+        y.append(point[1])
+
+    # Split into training and test set (time ordered)
+    cut_off = int(len(X) * percentage_train/100.0)
+    X_train, y_train = X[:cut_off], y[:cut_off]
+    X_test, y_test = X[cut_off + 1:], y[cut_off + 1:]
+
+
+    return X_train, y_train, X_test, y_test
+
+
 def plot_results(results, method):
 
     # Performance measures per E or theta
@@ -97,6 +114,11 @@ def plot_results(results, method):
     axs[2].plot(x, results['rmse_list'])
     axs[2].scatter(x, results['rmse_list'])
     axs[2].set_ylabel("RMSE")
+
+    for i in range(1, len(results['corr_list']) + 1):
+        axs[0].axvline(x=i, linestyle='--', color='grey', alpha=0.4)
+        axs[1].axvline(x=i, linestyle='--', color='grey', alpha=0.4)
+        axs[2].axvline(x=i, linestyle='--', color='grey', alpha=0.4)
 
     if method == "simplex":
         fig.supxlabel("E")
@@ -124,24 +146,29 @@ def plot_results(results, method):
     return 0
 
 
-def simplex_forecasting(training_set, test_set, lag, dim):
+def simplex_forecasting(X_train, y_train, X_test, y_test, dim):
 
     # Calculate distances from test points to training points
-    dist_matrix = create_distance_matrix(test_set, training_set)
+    dist_matrix = create_distance_matrix(X_test, X_train)
+
 
     observed = []
     predicted = []
 
-    for target in range(len(test_set)):
+
+    for target in range(len(X_test)):
+
         # Select E + 1 nearest neighbors
         dist_to_target = dist_matrix[target,:]
         nearest_neighbors = np.argpartition(dist_to_target, (0, dim+2))
-        nearest_neighbors = np.arange(len(training_set))[nearest_neighbors[0:dim+1]]
+        nearest_neighbors = np.arange(len(X_train))[nearest_neighbors[0:dim+1]]
         min_distance = dist_to_target[nearest_neighbors[0]]
+
 
         weighted_average = 0
         total_weight = 0
         weights = []
+
 
         # Calculate weighted sum of next value
         for neighbor in nearest_neighbors:
@@ -153,62 +180,77 @@ def simplex_forecasting(training_set, test_set, lag, dim):
             else:
                 weight = np.exp(-dist_to_target[neighbor] / min_distance)
 
-            next_val = training_set[neighbor][1]
+
+            next_val = y_train[neighbor]
             weighted_average += next_val * weight
             total_weight += weight
             weights.append(weight)
 
+
         # Calculate weighted average
         weighted_average = weighted_average / total_weight
         predicted.append(weighted_average)
-        observed.append(test_set[target][1])
+        observed.append(y_test[target])
+
 
     results = dict()
+
 
     # Calculate performance measures
     results['corr'] = pearsonr(observed, predicted)[0]
     results['mae'] = mean(abs(np.subtract(observed, predicted)))
     results['rmse'] = math.sqrt(mean(np.square(np.subtract(observed, predicted))))
-
     results['observed'] = observed
     results['predicted'] = predicted
+
 
     return results
 
 
-def smap_forecasting(training_set, test_set, theta):
+def smap_forecasting(X_training, y_training, X_test, y_test, theta):
+
     # Calculate distances from test points to training points
-    dist_matrix = create_distance_matrix(test_set, training_set)
+    dist_matrix = create_distance_matrix(X_test, X_training)
+
 
     results = dict()
     results['observed'], results['predicted'] = [], []
     results['theta'] = theta
 
-    for target in range(len(test_set)):
+
+    for target in range(len(X_test)):
+
+
         # Calculate weights for each training point
         distances = dist_matrix[target, :]
         weights = np.exp(-theta * distances / mean(distances))
 
+
         # Fill vector of weighted future values of training set
-        next_values = [point[1] for point in training_set]
+        next_values = y_training
         b = np.multiply(weights, next_values)
 
+
         # Fill matrix A
-        prev_values = np.array([item[0] for item in training_set])
+        prev_values = np.array(X_training)
         A = prev_values * np.array(weights)[:, None]
+
 
         # Calculate coefficients C using the pseudo-inverse of A (via SVD)
         coeffs = np.matmul(np.linalg.pinv(A), b)
 
+
         # Make prediction
-        prediction = np.matmul(np.array(test_set[target][0]), coeffs)
-        results['observed'].append(test_set[target][1])
+        prediction = np.matmul(np.array(X_test[target]), coeffs)
+        results['observed'].append(y_test[target])
         results['predicted'].append(prediction)
+
 
     # Calculate performance measures
     results['corr'] = pearsonr(results['observed'], results['predicted'])[0]
     results['mae'] = mean(abs(np.subtract(results['observed'], results['predicted'])))
     results['rmse'] = math.sqrt(mean(np.square(np.subtract(results['observed'],results['predicted']))))
+
 
     return results
 
@@ -217,68 +259,65 @@ def forecasting_for_cv(lib, k, lag, E, method):
     """
     :param k: the number of groups that the (concatenated) time series is to be split into
     """
-    if k > len(lib):
-        print("number of folds is too large")
-        k = len(lib)
+    #TODO: Implement using scikit-learn cross_validation
+    return(0)
+    # if k > len(lib):
+    #     print("number of folds is too large")
+    #     k = len(lib)
+    #
+    # results = dict()
+    # results['corr'], results['mae'], results['rmse'] = 0, 0, 0
+    # results['observed'], results['predicted'] = [], []
+    # block_size = int(len(lib) / k)
+    #
+    # for fold in range(k):
+    #
+    #     if fold != k - 1:
+    #         # Split into training and test set
+    #         test_set = lib[fold * block_size:(fold + 1) * block_size]
+    #         training_set = lib[:fold * block_size] + lib[(fold + 1) * block_size:]
+    #     else:
+    #         test_set = lib[fold * block_size:]
+    #         training_set = lib[:fold * block_size]
+    #
+    #     # Perform forecasting
+    #     if method == "simplex":
+    #         result_fold = simplex_forecasting(training_set, test_set, lag, E)
+    #     else:
+    #         result_fold = smap_forecasting(training_set, test_set, method)
+    #
+    #     results['observed'] += result_fold['observed']
+    #     results['predicted'] += result_fold['predicted']
+    #
+    # # Calculate performance measures
+    # results['corr'] = pearsonr(results['observed'], results['predicted'])[0]
+    # results['mae'] = mean(abs(np.subtract(results['observed'], results['predicted'])))
+    # results['rmse'] = math.sqrt(mean(np.square(np.subtract(results['observed'], results['predicted']))))
+    #
+    # return results
 
-    results = dict()
-    results['corr'], results['mae'], results['rmse'] = 0, 0, 0
-    results['observed'], results['predicted'] = [], []
-    block_size = int(len(lib) / k)
 
-    for fold in range(k):
-
-        if fold != k - 1:
-            # Split into training and test set
-            test_set = lib[fold * block_size:(fold + 1) * block_size]
-            training_set = lib[:fold * block_size] + lib[(fold + 1) * block_size:]
-        else:
-            test_set = lib[fold * block_size:]
-            training_set = lib[:fold * block_size]
-
-        # Perform forecasting
-        if method == "simplex":
-            result_fold = simplex_forecasting(training_set, test_set, lag, E)
-        else:
-            result_fold = smap_forecasting(training_set, test_set, method)
-
-        results['observed'] += result_fold['observed']
-        results['predicted'] += result_fold['predicted']
-
-    # Calculate performance measures
-    results['corr'] = pearsonr(results['observed'], results['predicted'])[0]
-    results['mae'] = mean(abs(np.subtract(results['observed'], results['predicted'])))
-    results['rmse'] = math.sqrt(mean(np.square(np.subtract(results['observed'], results['predicted']))))
-
-    return results
-
-
-def simplex_projection(ts, lag, max_E = 10, val_method ="LB", val_int = None):
-
-    if val_method == "LB" and val_int == None:
-        val_int = 50
+def simplex_projection(ts, lag, max_E = 10, plotting=True):
 
     results = dict()
     results['corr'], results['E'] = 0, None
     results['corr_list'], results['mae_list'], results['rmse_list'] = [], [], []
 
     E = 1
+
+    if max_E > np.sqrt(len(ts)):
+        max_E = np.floor(np.sqrt(len(ts)))
+        print("max_E too large. Changing to " + str(max_E))
+
+
     while E < max_E + 1:
+
         lib = embed_time_series(ts, lag, E)
+        X_train, y_train, X_test, y_test = split_train_test(lib, 70)
 
-        # make sure max_E is not too large
-        if max_E > np.sqrt(len(lib)):
-            max_E = int(np.floor(np.sqrt(len(lib))))
-            print("max_E too large. Changing to " + str(max_E) + ".")
 
-        if val_method == "CV": # k-fold cross validation
-            result_E = forecasting_for_cv(lib, val_int, lag, E, method="simplex")
+        result_E = simplex_forecasting(X_train, y_train, X_test, y_test, E)
 
-        else: # last block validation
-            split = int(np.ceil(val_int/100 * len(lib)))
-            training_set = lib[:split]
-            test_set = lib[split:]
-            result_E = simplex_forecasting(training_set, test_set, lag, E)
 
         results['corr_list'].append(result_E['corr'])
         results['mae_list'].append(result_E['mae'])
@@ -292,35 +331,23 @@ def simplex_projection(ts, lag, max_E = 10, val_method ="LB", val_int = None):
 
         E += 1
 
-    print("Optimal dimension found by Simplex is E = " + str(results['E']) +
+    if plotting:
+        print("Optimal dimension found by Simplex is E = " + str(results['E']) +
           " (phi = " + str(results['corr']) + ")")
 
     return results
 
 
-def smap(ts, lag, E, val_method ="LB", val_int = None):
+def smap(X_train, y_train, X_test, y_test):
 
-    if val_method == "LB" and val_int == None:
-        val_int = 50
 
     results = dict()
     results['corr'], results['theta'] = 0, None
     results['corr_list'], results['mae_list'], results['rmse_list'] = [], [], []
 
-    lib = embed_time_series(ts, lag, E)
-
-    # last block validation
-    if val_method != "CV":
-        split = int(np.ceil(val_int / 100 * len(lib)))
-        training_set = lib[:split]
-        test_set = lib[split:]
-
     for theta in range(11):
 
-        if val_method == "CV":
-            result_theta = forecasting_for_cv(lib, val_int, lag, E, theta)
-        else:
-            result_theta = smap_forecasting(training_set, test_set, theta)
+        result_theta = smap_forecasting(X_train, y_train, X_test, y_test, theta)
 
         # Update optimal predictions
         if result_theta['corr'] > results['corr'] or theta == 1:
@@ -331,92 +358,99 @@ def smap(ts, lag, E, val_method ="LB", val_int = None):
             results['observed'] = result_theta['observed']
             results['predicted'] = result_theta['predicted']
 
+
         results['corr_list'].append(result_theta['corr'])
         results['mae_list'].append(result_theta['mae'])
         results['rmse_list'].append(result_theta['rmse'])
 
+
     return results
 
 
-def edm(ts, lag, max_E, validation_method, validation_int):
+def edm(ts, lag, max_E, plotting=True):
 
-    results_simplex = simplex_projection(ts, lag, max_E, validation_method, validation_int)
-    plot_results(results_simplex, "simplex")
+    results_simplex = simplex_projection(ts, lag, max_E, plotting=False)
 
-    results_smap = smap(ts, lag, results_simplex['E'], validation_method, validation_int)
-    plot_results(results_smap, "s-map")
+    if plotting:
+        plot_results(results_simplex, "simplex")
 
-    print("Optimal theta found by S-map is " + str(results_smap['theta']) + " (phi = " + str(results_smap['corr']) + " )")
+    # Embed time series and create training and test sets
+    lib = embed_time_series(ts, E=results_simplex['E'])
+    X_train, y_train, X_test, y_test = split_train_test(lib, 70)
+
+    results_smap = smap(X_train, y_train, X_test, y_test)
+
+    if plotting:
+        plot_results(results_smap, "s-map")
+
+    print("Optimal theta found by S-map is " + str(results_smap['theta'])
+        + r"\rho = " + str(results_smap['corr']) + " )")
+
 
     return results_smap
 
 
-if __name__ == "__main__":
-    # Set parameters
-    E = 5
+def mega_loop(x, t):
 
+    interval_list = np.arange(1, 30, 5)
+    t_max_list = np.arange(15, 500, 25)
+
+    error = np.empty((len(interval_list), len(t_max_list)))
+
+    for interval in range(len(interval_list)):
+        for t_max in range(len(t_max_list)):
+
+            # Take sample(s) from lorenz trajectory
+            n_points = t_max_list[t_max]/interval_list[interval]
+            x, t = sample_from_ts(x_, t_, spin_off=0, n_points=n_points, sampling_interval=interval_list[interval])
+
+            results = edm(x, lag=1, max_E=10, plotting=False)
+            print("rij: " + str(interval) + ", kolom: " + str(n_points) + ", corr: " + str(round(results['corr'],3)))
+            error[interval, n_points] = round(results['corr'],5)
+
+    error_df = pd.DataFrame(error,
+                            columns=[str(i) for i in t_max_list],
+                            index=[str(i) for i in interval_list])
+
+
+
+
+
+
+
+
+if __name__ == "__main__":
+
+    t_max_lorenz = 500
+    resolution_lorenz = 0.01
+    n_time_steps = int(t_max_lorenz / resolution_lorenz)
 
     # Simulate the Lorenz System
-    x_, y_, z_, t_ = simulate_lorenz(tmax=80, ntimesteps=3000, obs_noise_sd=0)
+    x_, y_, z_, t_ = simulate_lorenz(tmax=t_max_lorenz, ntimesteps=n_time_steps, obs_noise_sd=0)
+    plot_time_series(x_, t_, scatter=False)
 
 
-    # Change sampling interval
-    spin_off = 300
-    sampling_interval = 20
-
-    x = [x_[i] for i in range(1, len(x_)) if i % sampling_interval == 0 and i > spin_off]
-    t = [t_[i] for i in range(1, len(x_)) if i % sampling_interval == 0 and i > spin_off]
+    mega_loop(x_[100:], t_[100:])
 
 
-    # Embed time series
-    lib = embed_time_series(x, lag=1, E=E)
-
-
-    # Split into training and test set (time ordered)
-    cut_off = int(len(lib) * 0.7)
-    X_train = x[:cut_off]
-    X_test = x[cut_off + 1:]
-
-
-    # Plot time series
-    plt.plot(t_, x_, color='grey', linewidth=1, linestyle='--')
-    plt.plot(t, x, color='orange', linewidth=2)
-    plt.scatter(t, x, color='red')
-    plt.axvline(x=t[0], color='red')
-    plt.axvline(x=((t[cut_off] + t[cut_off + 1]) / 2.0), color='red')
-    plt.title('Input time series')
-    #plt.show()
-
-
-    # Print information
-    print("Number of training samples: " + str(len(X_train)))
-    print("Number of test samples: " + str(len(X_test)))
-    print("Sampling interval: " + str(t[1] - t[0]))
-
-
-    results = edm(x, lag=1, max_E=E, validation_method="LB", validation_int=70)
-
-
-    # Plot error over test set
-    fig, axs = plt.subplots(2, sharex=True)
-
-    ax1 = axs[0]
-    ax2 = axs[1]
-
-    ax1.set_xlabel('time')
-    ax1.set_ylabel('x(t) and pred_x(t)')
-    ax1.plot(t[cut_off+1:], x[cut_off+1:], color='grey', linewidth=1, linestyle='--')
-    ax1.scatter(t[-len(results['predicted']):], results['predicted'], color='tab:cyan')
-    ax1.fill_between(t[-len(results['predicted']):], results['predicted'], results['observed'], color='tab:cyan', alpha=0.3)
-
-
-    ax2.set_ylabel('Absolute error')
-    plt.plot(t[-len(results['predicted']):], np.abs(np.array(results['predicted'])-np.array(results['observed'])), color='tab:cyan')
-
-
-    fig.tight_layout()
-    plt.show()
-
+    # # Plot error over test set
+    # fig, axs = plt.subplots(2, sharex=True)
+    #
+    # ax1 = axs[0]
+    # ax2 = axs[1]
+    #
+    # ax1.set_xlabel('time')
+    # ax1.set_ylabel('x(t) and pred_x(t)')
+    # ax1.plot(t[-len(results['predicted']):], results['observed'], color='grey', linewidth=1, linestyle='--')
+    # ax1.plot(t[-len(results['predicted']):], results['predicted'], color='tab:cyan')
+    # ax1.fill_between(t[-len(results['predicted']):], results['predicted'], results['observed'], color='tab:cyan', alpha=0.3)
+    #
+    # ax2.set_ylabel('Absolute error')
+    # error = np.abs(np.array(results['predicted']) - np.array(results['observed']))
+    # plt.plot(t[-len(results['predicted']):], error, color='tab:cyan')
+    #
+    # fig.tight_layout()
+    # plt.show()
 
 
     #TODO: for cross validation, do not calculate CORR, RMSE, MAE first and then aggregate, but collect all observations
