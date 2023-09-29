@@ -59,13 +59,13 @@ def simulate_lorenz(vec0 = np.array([1,1,1]),
     return [x,y,z,t]
 
 
-def sample_from_ts(x, t, spin_off, sampling_interval, n_points):
+def sample_from_ts(x, t, sampling_interval, n_points, spin_off=0):
 
     x_ = [x[i] for i in range(1, len(x)) if i % sampling_interval == 0 and i > spin_off]
-    x  = [x_[i] for i in range(1, len(x_)) if i < n_points]
+    x = [x_[i] for i in range(1, len(x_)) if i <= n_points]
 
     t_ = [t[i] for i in range(1, len(t)) if i % sampling_interval == 0 and i > spin_off]
-    t  = [t_[i] for i in range(1, len(t_)) if i < n_points]
+    t = [t_[i] for i in range(1, len(t_)) if i <= n_points]
 
     return x, t
 

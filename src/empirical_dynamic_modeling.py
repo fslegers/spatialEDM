@@ -1,11 +1,13 @@
 import math
 import pandas as pd
+import multiprocessing as mp
+
 
 from matplotlib.ticker import MaxNLocator
 from pyEDM import *
 from scipy.stats import pearsonr
-
 from create_dummy_time_series import *
+from functools import partial
 
 
 def create_hankel_matrix(ts, lag=1, E=2):
@@ -197,7 +199,10 @@ def simplex_forecasting(X_train, y_train, X_test, y_test, dim):
 
 
     # Calculate performance measures
-    results['corr'] = pearsonr(observed, predicted)[0]
+    try:
+        results['corr'] = pearsonr(observed, predicted)[0]
+    except:
+        results['corr'] = -2
     results['mae'] = mean(abs(np.subtract(observed, predicted)))
     results['rmse'] = math.sqrt(mean(np.square(np.subtract(observed, predicted))))
     results['observed'] = observed
@@ -251,6 +256,8 @@ def smap_forecasting(X_training, y_training, X_test, y_test, theta):
     results['mae'] = mean(abs(np.subtract(results['observed'], results['predicted'])))
     results['rmse'] = math.sqrt(mean(np.square(np.subtract(results['observed'],results['predicted']))))
 
+    if np.abs(results['corr']) < 0 or np.abs(results['corr']) > 1:
+        print("something is wrong")
 
     return results
 
@@ -305,8 +312,8 @@ def simplex_projection(ts, lag, max_E = 10, plotting=True):
 
     E = 1
 
-    if max_E > np.sqrt(len(ts)):
-        max_E = np.floor(np.sqrt(len(ts)))
+    if max_E > 0.3*len(ts) - 2:
+        max_E = max(1,int(0.3*len(ts)-2))
         print("max_E too large. Changing to " + str(max_E))
 
 
@@ -317,7 +324,6 @@ def simplex_projection(ts, lag, max_E = 10, plotting=True):
 
 
         result_E = simplex_forecasting(X_train, y_train, X_test, y_test, E)
-
 
         results['corr_list'].append(result_E['corr'])
         results['mae_list'].append(result_E['mae'])
@@ -383,54 +389,121 @@ def edm(ts, lag, max_E, plotting=True):
     if plotting:
         plot_results(results_smap, "s-map")
 
-    print("Optimal theta found by S-map is " + str(results_smap['theta'])
-        + r"\rho = " + str(results_smap['corr']) + " )")
-
+        print("Optimal theta found by S-map is " + str(results_smap['theta'])
+            + r"\rho = " + str(results_smap['corr']) + " )")
 
     return results_smap
 
 
-def mega_loop(x, t):
+def inner_loop(ts_x, ts_t):
 
-    interval_list = np.arange(1, 30, 5)
-    t_max_list = np.arange(15, 500, 25)
+    cannot_change_x = ts_x
+    cannot_change_t = ts_t
 
-    error = np.empty((len(interval_list), len(t_max_list)))
+    interval_list = [1,2,5,10,20,50]
+    n_points_list = [15,20,25,30,40,50,75,100,150,250,350,500]
 
-    for interval in range(len(interval_list)):
-        for t_max in range(len(t_max_list)):
+    error = np.zeros((len(interval_list), len(n_points_list)))
+
+    for i in range(len(interval_list)):
+        for j in range(len(n_points_list)):
 
             # Take sample(s) from lorenz trajectory
-            n_points = t_max_list[t_max]/interval_list[interval]
-            x, t = sample_from_ts(x_, t_, spin_off=0, n_points=n_points, sampling_interval=interval_list[interval])
+            #print("Number of points: " + str(n_points_list[j]))
+            dummy = n_points_list[j]
+            x_inner, t_inner = sample_from_ts(cannot_change_x, cannot_change_t, n_points=n_points_list[j], sampling_interval=interval_list[i])
+            #print("Length of time series: " + str(len(x_inner)))
 
-            results = edm(x, lag=1, max_E=10, plotting=False)
-            print("rij: " + str(interval) + ", kolom: " + str(n_points) + ", corr: " + str(round(results['corr'],3)))
-            error[interval, n_points] = round(results['corr'],5)
+            results = edm(x_inner, lag=1, max_E=10, plotting=False)
+            error[i, j] = round(results['corr'],5)
 
     error_df = pd.DataFrame(error,
-                            columns=[str(i) for i in t_max_list],
+                            columns=[str(i) for i in n_points_list],
                             index=[str(i) for i in interval_list])
 
+    return error_df
 
 
+def outer_loop(sd, a, b, c, d, e):
+    params = [a, b, c, d, e]
+
+    # Simulate the Lorenz System
+    x_, y_, z_, t_ = simulate_lorenz(tmax=params[0], ntimesteps=params[1], obs_noise_sd=sd)
+    x_ = x_[params[2]:]
+    t_ = t_[params[2]:]
+    del (y_, z_)
 
 
+    plt.plot(t_, x_)
+    plt.title("Entire TS")
+    plt.show()
+
+
+    # Start simulations
+    for i in range(params[4]):
+
+        print("---------- SIMULATION "+ str(i+1) + " OF " + str(params[4]) + "----------")
+
+        start_ = i * params[3]
+        stop_ = start_ + 500*50
+
+        # SLice Lorenz system
+        x = x_[start_:stop_]
+        t = t_[start_:stop_]
+
+        #plt.plot(t, x)
+        #plt.title("TS of simulation " + str(i + 1))
+        #plt.show()
+
+        df = inner_loop(x, t)
+
+        if i == 0:
+            df_total = df
+        else:
+            df_total += df
+
+
+    df_total = df_total / params[4]
+
+
+    df_total = pd.DataFrame(df_total)
+    path_name = "C:/Users/5605407/Documents/PhD/PythonProjects/timeseriesanalysis/results/output/df_"
+    path_name += str(sd) + " .csv"
+
+    df_total.to_csv(path_name)
+
+    return df_total
 
 
 
 if __name__ == "__main__":
 
-    t_max_lorenz = 500
-    resolution_lorenz = 0.01
-    n_time_steps = int(t_max_lorenz / resolution_lorenz)
-
-    # Simulate the Lorenz System
-    x_, y_, z_, t_ = simulate_lorenz(tmax=t_max_lorenz, ntimesteps=n_time_steps, obs_noise_sd=0)
-    plot_time_series(x_, t_, scatter=False)
+    number_of_sim = 5
+    length_shift = 123
+    spin_off = 150
 
 
-    mega_loop(x_[100:], t_[100:])
+    resolution_lorenz = 0.05
+    n_time_steps = 500*50+length_shift*(number_of_sim + 1)+spin_off
+    t_max_lorenz = resolution_lorenz*n_time_steps+1
+
+
+    # TODO: START PARALLEL
+    sd_list = [0, 0.01, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5, 10]
+    #sd_list = [1,10]
+
+
+    pool = mp.Pool(mp.cpu_count()-2)
+    #b = outer_loop(a, 1)
+    #print('finished with outer_loop test')
+    result = pool.map(partial(outer_loop, a=t_max_lorenz, b=n_time_steps, c=spin_off, d=length_shift, e=number_of_sim), sd_list)
+    pool.close()
+    pool.join()
+
+    results = [r.get() for r in result]
+    print(results)
+
+
 
 
     # # Plot error over test set
@@ -455,3 +528,7 @@ if __name__ == "__main__":
 
     #TODO: for cross validation, do not calculate CORR, RMSE, MAE first and then aggregate, but collect all observations
     # and predictions, then calculate these measures. Otherwise LOO-CV doesn't work.
+
+
+    #TODO: pearson correlation coefficient voor als de test set maar 1 punt bevat
+    #TODO: zorgen dat de test set minimaal 1 punt bevat

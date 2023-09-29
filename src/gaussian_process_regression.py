@@ -85,14 +85,6 @@ def plot_2d_gpr_samples(prior, post):
     return 0
 
 
-# def difference(ts, interval=1):
-#     diff = []
-#     for i in range(interval, len(ts)):
-#         value = ts[i] - ts[i - interval]
-#         diff.append(value)
-#     return diff
-
-
 if __name__ == "__main__":
 
     # Set parameters
@@ -143,10 +135,6 @@ if __name__ == "__main__":
     print("Sampling interval: " + str(t[1] - t[0]))
 
 
-    # Not time ordered:
-    # X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.4, random_state=42)
-
-
     # Transform into array-likes
     X_train, y_train = np.array(X_train), np.array(y_train)
     X_test, y_test = np.array(X_test), np.array(y_test)
@@ -172,7 +160,9 @@ if __name__ == "__main__":
     score = gpr.score(X_train, y_train)
     print("Optimized length scales: " + str(gpr.kernel_))
 
+
     pred_test = gpr.predict(X_test, return_std=True)
+
 
     plt.plot(np.linspace(min(y_test) - 1, max(y_test) + 1, num=50), np.linspace(min(y_test) - 1, max(y_test) + 1, num=50))
     plt.scatter(y_test, pred_test[0])
@@ -181,8 +171,10 @@ if __name__ == "__main__":
     plt.ylabel("predicted")
     plt.show()
 
+
     if E == 1:
         plot_univariate_gpr_samples(gpr_prior, gpr, 3)
+
 
     # fig, axs = plt.subplots(nrows=2, sharex=True, figsize=(10, 8))
     # plot_gpr_samples(min(X_train)[0], max(X_train)[0], gpr, n_samples=1, ax=axs[1])
@@ -194,7 +186,10 @@ if __name__ == "__main__":
     # plt.tight_layout()
     # fig.show()
 
+# TODO: Hierarchical GPR
 
+# TODO: deal with non-stationarity. Munch describes this in his paper but I think that goes too far for
+#  this project.
 
 
 
