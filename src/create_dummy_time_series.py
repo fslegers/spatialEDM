@@ -1,7 +1,41 @@
 from time_series_plots import *
 from scipy import integrate
 from matplotlib import pyplot as plt
+import random
 import numpy as np
+
+
+def diff(x, t, lag=1):
+
+    # Turn into array-likes
+    x = np.array(x)
+    t = np.array(t)
+
+    new_x = []
+    new_t = []
+
+    # Differencing to remove trend or seasonal effects
+    for i in range(lag, len(x)):
+        val = x[i] - x[i - lag]
+        new_x.append(val)
+        new_t.append(t[i])
+
+    return new_x, new_t
+
+
+def standardize(x):
+
+    if len(x) == 1:
+        print("Error in standardize. Input vector has only one element")
+        return(x)
+
+    # Remove mean and transform to unit variance
+    mean = np.mean(x)
+    std = np.std(x)
+    x = x - mean
+    x = x / std
+
+    return x
 
 
 def derivative_lv(X, t, alpha, beta, delta, gamma):
@@ -32,17 +66,18 @@ def simulate_lotka_volterra(vec0 = np.array([4,2]),
     x, y = res.T
 
     # Add obervation noise
-    obs_noise = np.random.normal(loc=0.0, scale=obs_noise_sd, size=(2,len(x)))
-    x += obs_noise[0,]
-    y += obs_noise[1,]
+    if obs_noise_sd > 0:
+        obs_noise = np.random.normal(loc=0.0, scale=obs_noise_sd, size=(2,len(x)))
+        x += obs_noise[0,]
+        y += obs_noise[1,]
 
     return(x,y,t)
 
 
 def simulate_lorenz(vec0 = np.array([1,1,1]),
-                      params = np.array([10, 28, 8.0/3.0]),
-                      ntimesteps = 1000, tmax = 30,
-                      obs_noise_sd=0):
+                    params = np.array([10, 28, 8.0/3.0]),
+                    ntimesteps = 1000, tmax = 30,
+                    obs_noise_sd=0.0):
 
     # TODO: add process noise?
 
@@ -59,50 +94,101 @@ def simulate_lorenz(vec0 = np.array([1,1,1]),
     return [x,y,z,t]
 
 
-def sample_from_ts(x, t, sampling_interval, n_points, spin_off=0):
+def sample_from_ts(x, t, sampling_interval, n_points=-1, spin_off=0, sample_end=False):
 
-    x_ = [x[i] for i in range(1, len(x)) if i % sampling_interval == 0 and i > spin_off]
-    x = [x_[i] for i in range(1, len(x_)) if i <= n_points]
+    x_ = [x[i] for i in range(len(x)) if i % sampling_interval == 0 and i > spin_off]
+    t_ = [t[i] for i in range(len(t)) if i % sampling_interval == 0 and i > spin_off]
 
-    t_ = [t[i] for i in range(1, len(t)) if i % sampling_interval == 0 and i > spin_off]
-    t = [t_[i] for i in range(1, len(t_)) if i <= n_points]
+    # Take first n_points observations
+    if not sample_end and n_points >= 1:
+        x = [x_[i] for i in range(len(x_)) if i <= n_points]
+        t = [t_[i] for i in range(len(t_)) if i <= n_points]
+
+    # Take last n_points observations
+    if sample_end and n_points >= 1:
+        x = [x_[i] for i in range(len(x_)) if i >= len(x_) - n_points]
+        t = [t_[i] for i in range(len(t_)) if i >= len(t_) - n_points]
+
+    if n_points < 1:
+        x = x_
+        t = t_
 
     return x, t
 
 
-def simulate_spatial_lorenz(init_points, init_params,
-                           ntimesteps = 1000, tmax = 30,
-                           obs_noise_sd=0):
+def simulate_spatial_lorenz(initial_vec,
+                            dt_initial,
+                            initial_params,
+                            delta_rho=0.0,
+                            std_noise=0.0,
+                            n_ts=5,
+                            ts_length=10,
+                            ts_interval=10):
+    """
+    First, a long trajectory of the Lorenz system is simulated for each combination of initial parameters. From these,
+    n_ts shorter time series with possibly larger sampling intervals are sampled. Then, observational noise is added.
+    """
 
-    # TODO: Now, there has to be the same number of init_points as init_params
-    # but we also want to be able to keep one constant and not the other
+    if dt_initial > 0 and delta_rho > 0:
+        print("It is not possible to change both the initial coordinates and the parameter rho at the moment. " \
+        "Changing dt_initial_coord to 0")
+        dt_initial = 0
 
-    n_plots = min(len(init_points), 4)
+    if dt_initial <= 0 and delta_rho <= 0:
+        print("At least one of dt_initial_coord and delta_rho has to be positive. Changing dt_initial_coord to 1")
+        delta_rho = 0
+        dt_initial = 1
+
+    # Save all trajectories in one place
+    all_trajectories = []
+    parameter_values = []
+
+    if dt_initial > 0:
+        string = r'$t_0$ = '
+        # Simulate one long time series
+        x_long, y_long, z_long, t_long = simulate_lorenz(vec0=initial_vec,
+                                                         params=initial_params,
+                                                         ntimesteps=max(1000, ts_length*ts_interval*(n_ts+1)),
+                                                         tmax=30,
+                                                         obs_noise_sd=std_noise)
+        del(y_long, z_long)
+
+        # From this time series, sample multiple short time series
+        # with starting conditions dt_initial away from each other
+        for i in range(0, n_ts):
+            x, t = sample_from_ts(x_long[dt_initial * i:], t_long[dt_initial * i:],
+                                              sampling_interval=ts_interval,
+                                              n_points=ts_length)
+            all_trajectories.append(x)
+            parameter_values.append(dt_initial*i)
+
+    elif delta_rho > 0:
+        string = "ρ = "
+        # For each different value of rho, simulate a time series
+        for i in range(0, n_ts):
+            x, y, z, t = simulate_lorenz(vec0=initial_vec,
+                                         params=initial_params,
+                                         ntimesteps=max(1000, ts_length*(ts_interval+1)),
+                                         tmax=30,
+                                         obs_noise_sd=std_noise)
+
+            x, t = sample_from_ts(x, t, sampling_interval=ts_interval, n_points=ts_length)
+            all_trajectories.append(x)
+
+            # change initial rho
+            parameter_values.append(initial_params[1])
+            initial_params[1] += delta_rho
+
+    # Prepare to make some plot of some time series
+    n_plots = min(n_ts, 5)
+    which_to_plot = random.sample(list(np.arange(0,n_ts)), n_plots)
+    which_to_plot.sort()
     fig, axs = plt.subplots(n_plots)
 
-    all_trajectories = []
-
-    for i in range(len(init_points)):
-
-        init_point = init_points[i]
-        init_param = init_params[i]
-
-        trajectories_i = simulate_lorenz(vec0=init_point,
-                                       params=init_param,
-                                       ntimesteps=ntimesteps,
-                                       tmax=tmax,
-                                       obs_noise_sd=obs_noise_sd)
-
-        trajectories_i.append(init_param)
-        all_trajectories.append(trajectories_i)
-
-        # Plot x variabele van de eerste 4 tijdreeksen
-        if i < n_plots:
-            label = "[" + "%0.2f" % init_point[0] + ", %0.2f" % init_point[1] + ", %0.2f" % init_point[2] + "] \n" + \
-                    r"$\sigma$" + "= %0.2f" % init_param[0] + "\n" + r"$\rho$" + "= %0.2f" % init_param[1] + "\n" + \
-                    r"$\beta$" + "= %0.2f" % init_param[2]
-            axs[i].plot(trajectories_i[3], trajectories_i[0], label=label)
-            axs[i].legend(loc=2, prop={'size': 5.9})
+    for i in range(0, n_plots):
+        x = all_trajectories[which_to_plot[i]]
+        axs[i].plot(np.arange(0, len(x)), x, label=string+str(parameter_values[which_to_plot[i]]))
+        axs[i].legend(loc='upper right', handlelength=0)
 
     for ax in axs[:-1]:
         ax.set_xticks([])
@@ -114,88 +200,40 @@ def simulate_spatial_lorenz(init_points, init_params,
 
 if __name__ == "__main__":
 
-    init_points = [np.array([1,1,1])]
-    init_params = [np.array([10, 28, 8.0/3.0])]
+    # # Plot replicates for different values of rho:
+    # simulate_spatial_lorenz(initial_vec=[4.548120346844322,-2.081443690988742,30.804556029728243],
+    #                         dt_initial=0,
+    #                         initial_params=[10,3,8/3],
+    #                         delta_rho=5,
+    #                         std_noise=0.0,
+    #                         n_ts=10,
+    #                         ts_length=150,
+    #                         ts_interval=5)
+    #
+    # # Plot replicates with different initial values:
+    # simulate_spatial_lorenz(initial_vec=[4.548120346844322,-2.081443690988742,30.804556029728243],
+    #                         dt_initial=10,
+    #                         initial_params=[10,28,8/3],
+    #                         delta_rho=0,
+    #                         std_noise=0.0,
+    #                         n_ts=5,
+    #                         ts_length=40,
+    #                         ts_interval=5)
 
-    for i in range(4):
-        vec0 = np.random.uniform(0.0, 4.0, 3)
+    x, y, z, t = simulate_lorenz(vec0=[4.548120346844322,-2.081443690988742,30.804556029728243], tmax=8, ntimesteps=350)
 
-        # Code for uniformly distr. parameters
-        #sigma0 = np.random.normal(10.0, 1.0)
-        #rho0 = np.random.normal(28.0, 2.0)
-        #beta0 = np.random.normal(8.0/3.0, 1.0)
-        #param0 = np.array([sigma0, rho0, beta0])
+    plt.plot(t, x, color='blue')
+    plt.plot(t, y, color='green')
+    plt.plot(t, z, color='orange')
+    plt.ylim((-21, 41))
+    plt.xlabel("time")
+    plt.show()
 
-        # Code for same parameters
-        param0 = np.array([10, 28, 8.0/3.0])
+    plt.plot(t, x, color='blue')
+    plt.xlabel("time")
+    plt.ylim((-21, 41))
+    plt.show()
 
-        init_points.append(vec0)
-        init_params.append(param0)
 
-    simulate_spatial_lorenz(init_points, init_params)
-
-    # fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2,2)
-    #
-    # x, y, z, t = simulate_lorenz(obs_noise_sd=0.0)
-    # ax1.plot(t, x, label="x")
-    # ax1.plot(t, y, label="y")
-    # ax1.plot(t, z, label="z")
-    # ax1.set_title(r'$\alpha$' + "= 0.0", verticalalignment='bottom')
-    #
-    # x, y, z, t = simulate_lorenz(obs_noise_sd=2.5)
-    # ax2.plot(t, x, label="x")
-    # ax2.plot(t, y, label="y")
-    # ax2.plot(t, z, label="z")
-    # ax2.set_title(r'$\alpha$' + "= 2.5", verticalalignment='bottom')
-    #
-    # x, y, z, t = simulate_lorenz(obs_noise_sd=5.0)
-    # ax3.plot(t, x, label="x")
-    # ax3.plot(t, y, label="y")
-    # ax3.plot(t, z, label="z")
-    # ax3.set_title(r'$\alpha$' + "= 5.0", verticalalignment='bottom')
-    #
-    # x, y, z, t = simulate_lorenz(obs_noise_sd=7.5)
-    # ax4.plot(t, x, label="x")
-    # ax4.plot(t, y, label="y")
-    # ax4.plot(t, z, label="z")
-    # ax4.set_title(r'$\alpha$' + "= 7.5", verticalalignment='bottom')
-    #
-    # for ax in fig.get_axes():
-    #     ax.label_outer()
-    #
-    # fig.suptitle("Lorenz system with observation noise", verticalalignment='top')
-    # fig.tight_layout()
-    #
-    # ##############################################################################
-    #
-    # fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
-    #
-    # x, y,t = simulate_lotka_volterra(obs_noise_sd=0.0)
-    # ax1.plot(t, x, label="x")
-    # ax1.plot(t, y, label="y")
-    # ax1.set_title(r'$\alpha$' + "= 0.0", verticalalignment='bottom')
-    #
-    # x, y, t = simulate_lotka_volterra(obs_noise_sd=0.25)
-    # ax2.plot(t, x, label="x")
-    # ax2.plot(t, y, label="y")
-    # ax2.set_title(r'$\alpha$' + "= 0.25", verticalalignment='bottom')
-    #
-    # x, y, t = simulate_lotka_volterra(obs_noise_sd=0.5)
-    # ax3.plot(t, x, label="x")
-    # ax3.plot(t, y, label="y")
-    # ax3.set_title(r'$\alpha$' + "= 0.5", verticalalignment='bottom')
-    #
-    # x, y, t = simulate_lotka_volterra(obs_noise_sd=1.5)
-    # ax4.plot(t, x, label="x")
-    # ax4.plot(t, y, label="y")
-    # ax4.set_title(r'$\alpha$' + "= 1.5", verticalalignment='bottom')
-    #
-    # for ax in fig.get_axes():
-    #     ax.label_outer()
-    #
-    # fig.suptitle("Lotka Volterra with observation noise", verticalalignment='top')
-    # fig.tight_layout()
-    #
-    # fig.show()
 
 

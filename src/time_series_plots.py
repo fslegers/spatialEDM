@@ -1,14 +1,11 @@
-"""packages used in this file"""
-import numpy as np
-import matplotlib.pyplot as plt
-from scipy import stats
-from pyts.image import RecurrencePlot
-from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
+from statsmodels.graphics.tsaplots import plot_acf
 from statsmodels.tsa.stattools import acf
-from mayavi import mlab
+
 from create_dummy_time_series import *
 
+
 default = object()
+
 
 def plot_time_series(time_series, obs_times = default, scatter=True, filename = ""):
     """
@@ -132,10 +129,6 @@ def plot_recurrence(time_series, delay = 1, eps = 0.05, filename = ""):
               " and threshold a double?")
 
 
-#TODO
-#Joint Recurrence Plot
-
-
 def plot_autocorrelation(time_series, filename = ""):
     """
     Plots the autocorrelation function of the time series.
@@ -145,10 +138,11 @@ def plot_autocorrelation(time_series, filename = ""):
     # Determine which lags to show on the x-axis
     n_col = np.shape(time_series)[0]
 
-    if n_col > 50:
-        lags = np.arange(0, np.floor(.5*len(time_series)), step = n_col / 50)
-    else:
-        lags = np.arange(0, np.floor(.5*len(time_series)))
+    #if n_col > 50:
+    #    lags = np.arange(0, np.floor(.5*len(time_series)), step = n_col / 50)
+    #else:
+    #    lags = np.arange(0, np.floor(.5*len(time_series)))
+    lags = np.arange(0, max(len(time_series), 50))
 
     plt.figure(figsize=(5, 5))
     plot_acf(time_series, lags = np.array(lags))
