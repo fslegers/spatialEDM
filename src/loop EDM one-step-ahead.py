@@ -129,6 +129,7 @@ def simple_test():
 
     return result
 
+
 def spatial_test():
 
     all_x = simulate_spatial_lorenz(initial_vec= [4.548120346844322, -2.081443690988742, 30.804556029728243],
