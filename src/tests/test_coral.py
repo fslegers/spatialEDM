@@ -683,31 +683,31 @@ def make_fringing_boxplots(all_results):
 def make_combined_boxplots(backreef, fringing, combined):
 
     # Add AE
-    for i in range(len(backreef)):
-        backreef[i]['AE'] = np.abs(backreef[i]['obs'] - backreef[i]['pred'])
-    for i in range(len(fringing)):
-        fringing[i]['AE'] = np.abs(fringing[i]['obs'] - fringing[i]['pred'])
-    for i in range(len(combined)):
-        combined[i]['AE'] = np.abs(combined[i]['obs'] - combined[i]['pred'])
+    for index in range(len(backreef)):
+        backreef[index]['AE'] = np.abs(backreef[index]['obs'] - backreef[index]['pred'])
+    for index in range(len(fringing)):
+        fringing[index]['AE'] = np.abs(fringing[index]['obs'] - fringing[index]['pred'])
+    for index in range(len(combined)):
+        combined[index]['AE'] = np.abs(combined[index]['obs'] - combined[index]['pred'])
 
     # Concatenate the backreef and fringing dataframes
     not_combined = []
     for i in range(3):
-        not_combined.append(pd.concat([backreef[i], fringing[i]], axis=0, ignore_index=True))
+        not_combined.append(pd.concat([backreef[index], fringing[index]], axis=0, ignore_index=True))
 
     all_data = []
-    for i in range(3):
-        not_combined[i] = not_combined[i][~np.isnan(not_combined[i]['AE'])]
-        combined[i] = combined[i][~np.isnan(combined[i]['AE'])]
-        all_data.append(not_combined[i]['AE'].values)
-        all_data.append(combined[i]['AE'].values)
+    for j in range(3):
+        not_combined[index] = not_combined[index][~np.isnan(not_combined[index]['AE'])]
+        combined[index] = combined[index][~np.isnan(combined[index]['AE'])]
+        all_data.append(not_combined[index]['AE'].values)
+        all_data.append(combined[index]['AE'].values)
 
     levels = ['Transect', 'Transect \n combined', 'Site', 'Site \n combined', 'Global', 'Global \n combined']
 
     # Define colors
     color_palette = plt.cm.tab10
-    palette = [color_palette(value) for value in np.linspace(0, 1, 2)]
-    placement = [-0.05, 0.05]
+    palette = [color_palette(value) for value in np.linspace(0, 1, 5)]
+    placement = [0.9, 1.1]
 
     # Other style choices
     boxprops = dict(linestyle='-', linewidth=2.5, facecolor='w', alpha=0.8, edgecolor='black')
@@ -716,33 +716,40 @@ def make_combined_boxplots(backreef, fringing, combined):
     whiskerprops = dict(linewidth=2)
     capprops = dict(linewidth=2)
 
-    bax = brokenaxes(ylims=((-0.01, 1.16), (1.17,1.18)))
+    fig, bax = plt.subplots()
     bax.boxplot(all_data, showmeans=True, meanline=True, labels=levels, showfliers=False, boxprops=boxprops,
                 medianprops=medianprops, meanprops=meanlineprops, whiskerprops=whiskerprops, capprops=capprops,
-                widths=.75, patch_artist=True)
+                widths=.5, patch_artist=True)
 
     # Add colored data points
-    for i in range(6):
-        print(i)
+    for index in range(6):
         x = []
         colors = []
 
         # Backreef or fringing in library
-        if i in [0, 2, 4]:
-            data_row = not_combined[i]
+        if index in [0, 2, 4]:
+            data_row = not_combined[int(index/2)]
         else:
-            data_row = combined[i]
+            data_row = combined[int((index - 1)/2)]
 
-        for j in range(len(data_row)):
-            if data_row['habitat'][j] == 'Backreef':
-                x.append([placement[0]])
+        for index_2 in range(len(data_row)):
+            if data_row['habitat'][index_2] == 'Backreef':
+                x.append(index + placement[0])
                 colors.append(palette[0])
             else: # habitat == Fringing
-                x.append([placement[1]])
+                x.append(index + placement[1])
                 colors.append(palette[1])
 
-        bax.scatter(x, all_data[i], alpha=0.8, color=colors)
+        if index in [0,1]:
+            bax.scatter(x, all_data[index], alpha=0.6, color=colors, label=data_row['habitat'][0])
+        else:
+            bax.scatter(x, all_data[index], alpha=0.6, color=colors)
 
+    legend = bax.legend(loc='upper right', bbox_to_anchor=(1.25, 1))
+    legend.set_title('Habitat')
+
+    bax.set_xticks(np.arange(1, len(levels) + 1), labels=levels)
+    plt.tight_layout()
     plt.savefig('./Boxplots Combined Echinometra mathaei.png', dpi=1200)
     plt.show()
 
@@ -867,9 +874,9 @@ def make_smap_plots(smap_local, smap_transect, smap_site, smap_global):
 if __name__ == "__main__":
 
     # only run once
-    make_backreef_data_set()
-    make_fringing_data_set()
-    make_combined_data_set()
+    # make_backreef_data_set()
+    # make_fringing_data_set()
+    # make_combined_data_set()
 
     # Change directory
     os.chdir('../..')
@@ -922,8 +929,8 @@ if __name__ == "__main__":
 
     # Make boxplots
     # make_smap_plots(smap_local, smap_transect, smap_site, smap_global)
-    make_backreef_boxplots([smap_local_backreef, smap_transect_backreef, smap_site_backreef, smap_global_backreef])
-    make_fringing_boxplots([smap_local_fringing, smap_transect_fringing, smap_site_fringing, smap_global_fringing])
+    # make_backreef_boxplots([smap_local_backreef, smap_transect_backreef, smap_site_backreef, smap_global_backreef])
+    # make_fringing_boxplots([smap_local_fringing, smap_transect_fringing, smap_site_fringing, smap_global_fringing])
 
     backreef = [smap_transect_backreef, smap_site_backreef, smap_global_backreef]
     fringing = [smap_transect_fringing, smap_site_fringing, smap_global_fringing]
