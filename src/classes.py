@@ -2,7 +2,6 @@ import math
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
-#from matplotlib.ticker import FuncFormatter
 from scipy.stats import pearsonr
 
 
@@ -32,90 +31,6 @@ class EmbeddingVector:
         print(f"Observation time: {self.time_stamp}")
         print(f"Species: {self.species}")
         print(f"Location: {self.location}")
-
-
-# class TimeSeries:
-#
-#     def __init__(self, points, location="loc", species='spec', interval=1):
-#         self.points = points
-#         self.location = location
-#         self.species = species
-#         self.interval = interval
-#         self.length = len(points)
-#         self.obs_times = None
-#         self.time_span = None
-#         self.start_point = None
-#         self.order()
-#
-#     def display_info(self):
-#         print(f"Number of points: {self.length}")
-#         print(f"From location: {self.location}")
-#         print(f"Of species: {self.species}")
-#         print(f"Between times {self.time_span[0]} and {self.time_span[1]}")
-#         print(f"With sampling interval {self.interval}.")
-#
-#     def order(self):
-#         sorted_points = sorted(self.points, key=lambda p: p.time_stamp)
-#         self.points = sorted_points
-#         self.obs_times = [point.time_stamp for point in self.points]
-#         self.time_span = [min(self.obs_times), max(self.obs_times)]
-#         self.start_point = sorted_points[0]
-#
-#     def differentiate(self):
-#
-#         new_points = []
-#
-#         for i in range(1, len(self.points)):
-#             new_point = copy.copy(self.points[i])
-#             new_point.value = self.points[i].value - self.points[i - 1].value
-#             new_points.append(new_point)
-#
-#         self.points = new_points
-#
-#     def reverse_differentiate(self):
-#
-#         new_points = []
-#
-#         prev = self.start_point
-#         new_points.append(prev)
-#
-#         for i in range(0, self.length - 1): # or self.length?
-#             new_point = copy.copy(self.points[i])
-#             new_point.value = self.points[i].value + prev.value
-#             new_points.append(new_point)
-#             prev = new_point
-#
-#         self.points = new_points
-#
-#
-# class ConcatenatedTimeSeries:
-#     def __init__(self, points):
-#         self.points = points
-#         self.length = len(points)
-#         self.locations = [point.location for point in points]
-#         self.species = [point.species for point in points]
-#         #self.interval = points[0].interval
-#         self.obs_times = set([point.time_stamp for point in points])
-#         self.time_span = [min(self.obs_times), max(self.obs_times)]
-#
-#     def display_info(self):
-#         print(f"Total number of points: {sum([ts.length for ts in self.points])}")
-#         print(f"From {len(self.locations)} locations: {self.locations}")
-#         print(f"Of {len(self.species)} species: {self.species}")
-#         print(f"Between times {self.time_span[0]} and {self.time_span[1]}")
-#         #print(f"With sampling interval {self.interval}.")
-#
-#     def order(self):
-#         for ts in self.points:
-#             ts.order()
-#
-#     def differentiate(self):
-#         for ts in self.points:
-#             ts.differentiate()
-#
-#     def reverse_differentiate(self):
-#         for ts in self.points:
-#             ts.reverse_differentiate()
 
 
 class Library:
@@ -966,40 +881,6 @@ class EDM():
         plt.tight_layout()
         plt.savefig("big_plot")
         plt.show()
-
-        # # Training time series + predictions for each location
-        # loc = df_simplex['location'][0]
-        # spec = df_simplex['species'][0]
-        #
-        # t_test = df_simplex.loc[(df_simplex['location'] == loc) & (df_simplex['species'] == spec), 'time_stamp'].tolist()
-        # t_train = [vec[1].time_stamp for vec in self.lib if vec[1].loc==loc and vec[1].species ==spec]
-        #
-        # y_test_obs = df_simplex.loc[(df_simplex['location'] == loc) & (df_simplex['species'] == spec), 'obs'].tolist()
-        # y_test_pred = df_simplex.loc[(df_simplex['location'] == loc) & (df_simplex['species'] == spec), 'pred'].tolist()
-        # y_train = [vec[1].value for vec in self.lib if vec[1].loc == loc and vec[1].species == spec]
-        #
-        # axes[1,0].plot(t_train + t_test, y_train + y_test_obs, color='blue')
-        # axes[1,0].scatter(t_train + t_test, y_train + y_test_obs, color='blue')
-        # axes[1,0].scatter(t_test, y_test_pred, color='red')
-        #
-        # t_test = df_smap.loc[(df_smap['location'] == loc) & (df_smap['species'] == spec), 'time_stamp'].tolist()
-        #
-        # y_test_obs = df_smap.loc[(df_smap['location'] == loc) & (df_smap['species'] == spec), 'obs'].tolist()
-        # y_test_pred = df_smap.loc[(df_smap['location'] == loc) & (df_smap['species'] == spec), 'pred'].tolist()
-        #
-        # axes[1, 1].plot(t_train + t_test, y_train + y_test_obs, color='blue')
-        # axes[1, 1].scatter(t_train + t_test, y_train + y_test_obs, color='blue')
-        # axes[1, 1].scatter(t_test, y_test_pred, color='red')
-
-        # # RMSE for each step-ahead
-        #
-        # line = plt.Line2D((.5, .5), (.1, .95), color="k", linewidth=1)
-        # fig.add_artist(line)
-
-        #plt.subplots_adjust(hspace=1)
-        #plt.tight_layout(rect=[0,0.1,1,0.9])
-        #plt.savefig(path+".png")
-        #plt.show()
 
         return 0
 
