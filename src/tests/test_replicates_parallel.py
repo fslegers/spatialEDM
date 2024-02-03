@@ -99,11 +99,11 @@ def process_iteration_rhos(param_var, n_replicates, vec_0, ts_length, obs_noise,
 
 if __name__ == "__main__":
 
-    n_replicates = 25
-    n_iterations = 75
+    n_replicates = 3
+    n_iterations = 3
     ts_length = 75
-    horizon = 6
-    run_tests = ["initial_point", "rho"]
+    horizon = 2
+    run_tests = ["rho"]
 
     # Set seed and navigate to results directory
     np.random.seed(123)
@@ -121,23 +121,26 @@ if __name__ == "__main__":
     for i in indices:
         initial_vecs.append([x[i], y[i], z[i]])
 
-    initial_point_variances = [0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0]
-    rho_variances = [0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0]
+    # initial_point_variances = [0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5]
+    # rho_variances = [0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5]
 
-    # initial_point_variances = [0, 0.5, 5.0]
-    # rho_variances = [0, 0.5, 5.0]
+    initial_point_variances = [0, 0.5, 5.0]
+    rho_variances = [0, 0.5, 5.0]
 
     obs_noises = [0.0, 1.0, 2.0]
-    for obs_noise in tqdm(obs_noises, desc="Processing", unit="iteration"):
+    for obs_noise_index in range(len(obs_noises)):
+        obs_noise = obs_noises[obs_noise_index]
+
+        print("\n Starting round " + str(obs_noise_index + 1) + " of " + str(len(obs_noises)))
 
         results_initial_point_variance = pd.DataFrame(columns=['obs_noise', 'init_var', 'hor', 'obs', 'pred_simplex', 'pred_smap'])
         results_rho_variance = pd.DataFrame(columns=['obs_noise', 'param_var', 'hor', 'obs', 'pred_simplex', 'pred_smap'])
 
-        for vec_0 in initial_vecs:
+        for vec_0 in tqdm(initial_vecs, desc="Processing", unit="iteration"):
 
             # Test different levels of variance initial values
             if("initial_point" in run_tests):
-                with ProcessPoolExecutor(max_workers=8) as executor:
+                with ProcessPoolExecutor(max_workers=10) as executor:
                     results_list = list(executor.map(process_iteration_initial_values, initial_point_variances, [n_replicates] * len(initial_point_variances),
                                                      [vec_0] * len(initial_point_variances),
                                                      [ts_length] * len(initial_point_variances), [obs_noise] * len(initial_point_variances),
@@ -147,9 +150,14 @@ if __name__ == "__main__":
                 results_df = pd.concat([pd.DataFrame(result) for result in results_list], ignore_index=True)
                 results_initial_point_variance = pd.concat([results_initial_point_variance, results_df])
 
+                path_name = "./initial point variance/obs_noise = " + str(obs_noise) + ", n_iterations = " + str(n_iterations) + ", n_replicates = " + str(
+                    n_replicates) + ", ts_length = " + str(ts_length) + ", hor = " + str(horizon) + ".csv"
+                results_initial_point_variance.to_csv(path_name, index=False)
+
+
             # Test different levels of parameter variance
             if ("rho" in run_tests):
-                with ProcessPoolExecutor(max_workers=8) as executor:
+                with ProcessPoolExecutor(max_workers=10) as executor:
                     results_list = list(executor.map(process_iteration_rhos, rho_variances,
                                                      [n_replicates] * len(rho_variances),
                                                      [vec_0] * len(rho_variances),
@@ -161,15 +169,12 @@ if __name__ == "__main__":
                 results_df = pd.concat([pd.DataFrame(result) for result in results_list], ignore_index=True)
                 results_rho_variance = pd.concat([results_rho_variance, results_df])
 
-            if "initial_point" in run_tests:
-                path_name = "./initial point variance/obs_noise = " + str(obs_noise) + ", n_iterations = " + str(n_iterations) + ", n_replicates = " + str(
-                    n_replicates) + ", ts_length = " + str(ts_length) + ", hor = " + str(horizon) + ".csv"
-                results_initial_point_variance.to_csv(path_name, index=False)
-
-            if "rho" in run_tests:
                 path_name = "./rho variance/obs_noise = " + str(obs_noise) + ", n_iterations = " + str(n_iterations) + ", n_replicates = " + str(n_replicates) + ", ts_length = " + str(
                     ts_length) + ", hor = " + str(horizon) + ".csv"
                 results_rho_variance.to_csv(path_name, index=False)
+
+
+
 
 
 
