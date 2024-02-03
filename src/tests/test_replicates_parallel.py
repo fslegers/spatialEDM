@@ -99,10 +99,10 @@ def process_iteration_rhos(param_var, n_replicates, vec_0, ts_length, obs_noise,
 
 if __name__ == "__main__":
 
-    n_replicates = 3
-    n_iterations = 3
+    n_replicates = 25
+    n_iterations = 35
     ts_length = 75
-    horizon = 2
+    horizon = 6
     run_tests = ["rho"]
 
     # Set seed and navigate to results directory
@@ -121,13 +121,13 @@ if __name__ == "__main__":
     for i in indices:
         initial_vecs.append([x[i], y[i], z[i]])
 
-    # initial_point_variances = [0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5]
-    # rho_variances = [0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5]
+    initial_point_variances = [0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5]
+    rho_variances = [0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5]
 
-    initial_point_variances = [0, 0.5, 5.0]
-    rho_variances = [0, 0.5, 5.0]
+    # initial_point_variances = [0, 0.5, 5.0]
+    # rho_variances = [0, 0.5, 5.0]
 
-    obs_noises = [0.0, 1.0, 2.0]
+    obs_noises = [0.0]
     for obs_noise_index in range(len(obs_noises)):
         obs_noise = obs_noises[obs_noise_index]
 
