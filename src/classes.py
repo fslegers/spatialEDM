@@ -159,43 +159,42 @@ class Library:
 
         return train, test
 
-    def split_rolling_base(lib, frac):
-        return 0
-        # # TODO: fix a lot
-        # min_tr_size = 1
-        # n_bins = 1
-        #
-        # # Initialize training and test sets
-        # X_trains, y_trains = [], []
-        # X_tests, y_tests = [], []
-        #
-        # # Split predictor variables from target variables
-        # X, y = [], []
-        # for point in lib:
-        #     X.append(point[0])
-        #     y.append(point[1])
-        #
-        # # Determine bin sizes
-        # bin_size = max(1, int((len(lib) - min_tr_size) / n_bins))
-        #
-        # # Fix n_bins if necessary
-        # if n_bins > int((len(lib) - min_tr_size) / bin_size):
-        #     n_bins = int((len(lib) - min_tr_size) / bin_size)
-        #
-        # stop = len(lib)
-        #
-        # # For each bin, fill a training and test set
-        # for i in range(n_bins):
-        #     start = stop - bin_size
-        #     X_test, y_test = X[start:stop], y[start:stop]
-        #     X_train, y_train = X[0:start], y[0:start]
-        #     X_trains.append(X_train)
-        #     X_tests.append(X_test)
-        #     y_trains.append(y_train)
-        #     y_tests.append(y_test)
-        #     stop = stop - bin_size
-        #
-        # return X_trains, y_trains, X_tests, y_tests
+    def split_rolling_base(self, lib): # TODO: test
+
+        train, test = [], []
+
+        X, y = [], []
+        t_min, t_max = math.inf, -math.inf
+        for point in lib:
+            X.append(point[0])
+            y.append(point[1])
+
+            if point[1].time_stamp < t_min:
+                t_min = point[1].time_stamp
+            if point[1].time_stamp > t_max:
+                t_max = point[1].time_stamp
+
+        for run in range(int(1/self.cv_fraction) - 1):
+
+            # Split into training and test set (time ordered)
+            cut_off = int(math.ceil(t_max - (run + 1) * self.cv_fraction))
+
+            X_train, y_train, X_test, y_test = [], [], [], []
+            for i in range(len(X)):
+                if y[i].time_stamp <= cut_off:
+                    X_train.append(X[i])
+                    y_train.append(y[i])
+                else:
+                    X_test.append(X[i])
+                    y_test.append(y[i])
+
+            train_this_run = list(zip(X_train, y_train))
+            test_this_run = list(zip(X_test, y_test))
+
+            train.append(train_this_run)
+            test.append(test_this_run)
+
+        return train, test
 
 
 class EDM():
@@ -284,7 +283,7 @@ class EDM():
             self.results_simplex['rmse_list'].append(result['rmse'])
             self.results_simplex['mae_list'].append(result['mae'])
 
-            if result['corr'] > self.results_simplex['corr'] or self.results_simplex['corr'] == -math.inf:
+            if result['rmse'] < self.results_simplex['rmse'] or self.results_simplex['rmse'] == math.inf:
                 self.results_simplex['observed'] = result['observed']
                 self.results_simplex['predicted'] = result['predicted']
                 self.results_simplex['corr'] = result['corr']
@@ -296,7 +295,7 @@ class EDM():
             self.results_smap['rmse_list'].append(result['rmse'])
             self.results_smap['mae_list'].append(result['mae'])
 
-            if result['corr'] > self.results_smap['corr'] or self.results_smap['corr'] == -math.inf:
+            if result['rmse'] < self.results_smap['rmse'] or self.results_smap['rmse'] == math.inf:
                 self.results_smap['observed'] = result['observed']
                 self.results_smap['predicted'] = result['predicted']
                 self.results_smap['corr'] = result['corr']
@@ -725,6 +724,8 @@ class EDM():
         axs[0,0].plot(x, results['corr_list'])
         axs[0,0].scatter(x, results['corr_list'])
         axs[0,0].set_ylabel("rho")
+
+        # TODO: make plots for RMSE/MAE
 
         # axs[1].plot(x, results['mae_list'])
         # axs[1].scatter(x, results['mae_list'])
