@@ -2,7 +2,9 @@ import math
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
-from scipy.stats import pearsonr
+from scipy.stats import pearsonr, ConstantInputWarning
+import statistics
+
 
 
 class Point:
@@ -174,14 +176,15 @@ class Library:
             if point[1].time_stamp > t_max:
                 t_max = point[1].time_stamp
 
-        for run in range(int(1/self.cv_fraction) - 1):
+        for run in range(int(1/self.cv_fraction)):
 
             # Split into training and test set (time ordered)
-            cut_off = int(math.ceil(t_max - (run + 1) * self.cv_fraction))
+            upper_bound = min(t_max, int(math.ceil(t_max - run * self.cv_fraction * (t_max - t_min))))
+            lower_bound = max(t_min, int(math.ceil(t_max - (run + 1) * self.cv_fraction * (t_max - t_min))))
 
             X_train, y_train, X_test, y_test = [], [], [], []
             for i in range(len(X)):
-                if y[i].time_stamp <= cut_off:
+                if y[i].time_stamp > lower_bound and y[i].time_stamp <= upper_bound:
                     X_train.append(X[i])
                     y_train.append(y[i])
                 else:
@@ -211,10 +214,10 @@ class EDM():
         self.results_smap = {}
         self.lib = []
         self.training_ts = []
-
         self.interval = 0
 
         self.initialize_results()
+
 
     def correct_max_dim(self, points, max_dim):
 
@@ -231,6 +234,7 @@ class EDM():
             max_dim = max(1, (length - 2 - 1) / self.horizon)
 
         return max_dim
+
 
     def initialize_results(self):
         self.results_simplex['corr'] = -math.inf
@@ -249,34 +253,28 @@ class EDM():
         self.results_smap['rmse_list'] = []
         self.results_smap['theta'] = None
 
-    def initialize_single_result(self, param, value):
+
+    def get_single_result(self, obs, pred):
+
+        diff = np.subtract(obs, pred)
         result = {}
-        result['corr'] = 0
-        result['mae'] = 0
-        result['rmse'] = 0
-        result[param] = value
-        result['observed'] = []
-        result['predicted'] = []
+
+        result['mae'] = np.mean(abs(diff))
+        result['rmse'] = math.sqrt(np.mean(np.square(diff)))
+        result['observed'] = obs
+        result['predicted'] = pred
+
+        try:
+            result['corr'] = pearsonr(obs, pred)[0]
+        except ConstantInputWarning:
+            result['corr'] = None
+        except:
+            result['corr'] = None
 
         return result
 
-    def update_single_result(self, result, n_mae, n_corr, obs, pred):
-        try:
-            diff = np.subtract(obs, pred)
-            result['mae'] += np.mean(abs(diff))
-            result['rmse'] += math.sqrt(np.mean(np.square(diff)))
-            result['observed'] += obs
-            result['predicted'] += pred
-        except:
-            n_mae -= 1
 
-        try:
-            result['corr'] += pearsonr(obs, pred)[0]
-        except:
-            n_corr -= 1
-        return result, n_mae, n_corr
-
-    def update_results(self, result, method):
+    def update_results(self, result, var, method):
 
         if method == "simplex":
             self.results_simplex['corr_list'].append(result['corr'])
@@ -287,8 +285,8 @@ class EDM():
                 self.results_simplex['observed'] = result['observed']
                 self.results_simplex['predicted'] = result['predicted']
                 self.results_simplex['corr'] = result['corr']
-                self.results_simplex['dim'] = result['dim']
-                self.dim = result['dim']
+                self.results_simplex['dim'] = var
+                self.dim = var
 
         elif method == "smap":
             self.results_smap['corr_list'].append(result['corr'])
@@ -299,15 +297,13 @@ class EDM():
                 self.results_smap['observed'] = result['observed']
                 self.results_smap['predicted'] = result['predicted']
                 self.results_smap['corr'] = result['corr']
-                self.results_smap['theta'] = result['theta']
-                self.theta = result['theta']
-
+                self.results_smap['theta'] = var
+                self.theta = var
         else:
-            print("0")
+            print("Something went wrong (line 307).")
+
 
     def knn_forecasting(self, lib):
-
-        result = self.initialize_single_result(param="dim", value=lib.dim)
 
         if lib.cv_method == "LB":
             X_train, y_train = list(zip(*lib.train))
@@ -353,9 +349,10 @@ class EDM():
                 predicted.append(weighted_average)
                 observed.append(y_test[target].value)
 
-            result, n_mae, n_corr = self.update_single_result(result, n_mae=1, n_corr=1, obs=observed, pred=predicted)
+            result = self.get_single_result(obs=observed, pred=predicted)
 
-        else:
+        elif lib.cv_method == "RB":
+
             for i in range(len(lib.train)):
 
                 train, test = lib.train[i], lib.test[i]
@@ -365,55 +362,59 @@ class EDM():
 
                 dist_matrix = create_distance_matrix(X_test, X_train)
 
-            observed = []
-            predicted = []
+                observed = []
+                predicted = []
+                all_results = []
 
-            for target in range(len(X_test)):
+                try:
+                    for target in range(len(X_test)):
 
-                dist_to_target = dist_matrix[target, :]
-
-                if len(dist_to_target) == lib.dim + 1:
-                    nearest_neighbors = np.arange(0, lib.dim + 1)
-                else:
-                    nearest_neighbors = np.argpartition(dist_to_target, min(lib.dim + 1, len(dist_to_target) - 1))[:lib.dim + 1]
-
-                min_distance = dist_to_target[nearest_neighbors[0]]
-
-                weighted_average = 0
-                total_weight = 0
-                weights = []
-
-                # Calculate weighted sum of next value
-                for neighbor in nearest_neighbors:
-                    if min_distance == 0:
-                        if dist_to_target[neighbor] == 0:
-                            weight = 1
+                        dist_to_target = dist_matrix[target, :]
+                        if len(dist_to_target) == lib.dim + 1:
+                            nearest_neighbors = np.arange(0, lib.dim + 1)
                         else:
-                            weight = 0.000001
-                    else:
-                        weight = np.exp(-dist_to_target[neighbor] / min_distance)
+                            nearest_neighbors = np.argpartition(dist_to_target,
+                                                                min(lib.dim + 1, len(dist_to_target) - 1))[:lib.dim + 1]
 
-                    next_val = y_train[neighbor].value
-                    weighted_average += next_val * weight
-                    total_weight += weight
-                    weights.append(weight)
+                        min_distance = dist_to_target[nearest_neighbors[0]]
 
-                # Calculate weighted average
-                weighted_average = weighted_average / total_weight
-                predicted.append(weighted_average)
-                observed.append(y_test[target].value)
+                        weighted_average = 0
+                        total_weight = 0
+                        weights = []
 
-                # Update result
-                n_mae, n_corr = len(lib.train), len(lib.train)
-                result, n_mae, n_corr = self.update_single_result(result, n_mae, n_corr, observed, predicted)
+                        # Calculate weighted sum of next value
+                        for neighbor in nearest_neighbors:
+                            if min_distance == 0:
+                                if dist_to_target[neighbor] == 0:
+                                    weight = 1
+                                else:
+                                    weight = 0.000001
+                            else:
+                                weight = np.exp(-dist_to_target[neighbor] / min_distance)
 
-            result = average_result(result, n_mae, n_corr)
+                            next_val = y_train[neighbor].value
+                            weighted_average += next_val * weight
+                            total_weight += weight
+                            weights.append(weight)
+
+                        # Calculate weighted average
+                        weighted_average = weighted_average / total_weight
+                        predicted.append(weighted_average)
+                        observed.append(y_test[target].value)
+
+                    # Update result
+                    result = self.get_single_result(observed, predicted)
+                    all_results.append(result)
+
+                except:
+                    print("Something went wrong (line 493)")
+
+            result = average_result(all_results)
 
         return result
 
-    def smap_forecasting(self, lib, theta):
 
-        result = self.initialize_single_result(param='theta', value=theta)
+    def smap_forecasting(self, lib, theta):
 
         if lib.cv_method == "LB":
             X_train, y_train = list(zip(*lib.train))
@@ -445,7 +446,7 @@ class EDM():
                 observed.append(y_test[target].value)
                 predicted.append(prediction)
 
-            result, n_mae, n_corr = self.update_single_result(result, n_mae=1, n_corr=1, obs=observed, pred=predicted)
+            result = self.get_single_result(obs=observed, pred=predicted)
 
         elif lib.cv_method == "RB":
 
@@ -457,38 +458,44 @@ class EDM():
                 X_test, y_test = list(zip(*test))
 
                 dist_matrix = create_distance_matrix(X_test, X_train)
-                dist_matrix = create_distance_matrix(X_test, X_train)
 
                 observed = []
                 predicted = []
 
-                for target in range(len(X_test)):
-                    # Calculate weights for each training point
-                    distances = dist_matrix[target, :]
-                    weights = np.exp(-theta * distances / np.mean(distances))
+                all_results = []
 
-                    # Fill vector of weighted future values of training set
-                    next_values = [point.value for point in y_train]
-                    b = np.multiply(weights, next_values)
+                try:
+                    for target in range(len(X_test)):
+                        # Calculate weights for each training point
+                        distances = dist_matrix[target, :]
+                        weights = np.exp(-theta * distances / np.mean(distances))
 
-                    # Fill matrix A
-                    embedding_vectors = np.array([point.values for point in X_train])
-                    A = embedding_vectors * np.array(weights)[:, None]
+                        # Fill vector of weighted future values of training set
+                        next_values = [point.value for point in y_train]
+                        b = np.multiply(weights, next_values)
 
-                    # Calculate coefficients C using the pseudo-inverse of A (via SVD)
-                    coeffs = np.matmul(np.linalg.pinv(A), b)
+                        # Fill matrix A
+                        embedding_vectors = np.array([point.values for point in X_train])
+                        A = embedding_vectors * np.array(weights)[:, None]
 
-                    # Make prediction
-                    prediction = np.matmul(np.array(X_test[target].values), coeffs)
-                    observed.append(y_test[target].value)
-                    predicted.append(prediction)
+                        # Calculate coefficients C using the pseudo-inverse of A (via SVD)
+                        coeffs = np.matmul(np.linalg.pinv(A), b)
 
-                n_mae, n_corr = len(lib.train), len(lib.train)
-                result, n_mae, n_corr = self.update_single_result(result, n_mae, n_corr, observed, predicted)
+                        # Make prediction
+                        prediction = np.matmul(np.array(X_test[target].values), coeffs)
+                        observed.append(y_test[target].value)
+                        predicted.append(prediction)
 
-            result = average_result(result, n_mae, n_corr)
+                    result = self.get_single_result(obs=observed, pred=predicted)
+                    all_results.append(result)
+
+                except:
+                    print("Something went wrong (line 493)")
+
+            result = average_result(all_results)
 
         return result
+
 
     def simplex(self, points, max_dim=10):
 
@@ -498,7 +505,8 @@ class EDM():
         for dim in range(1, max_dim + 1):
             lib = Library(points, dim, self.lag, self.horizon, self.cv_method, self.cv_fraction)
             result = self.knn_forecasting(lib)
-            self.update_results(result, "simplex")
+            self.update_results(result, dim, "simplex")
+
 
     def smap(self, points):
 
@@ -506,7 +514,8 @@ class EDM():
 
         for theta in range(0, 11):
             result = self.smap_forecasting(lib, theta)
-            self.update_results(result, "smap")
+            self.update_results(result, theta, "smap")
+
 
     def train(self, ts, interval = 1, max_dim=10):
         """
@@ -527,6 +536,7 @@ class EDM():
 
         self.lib = Library(ts, self.dim, self.lag, self.horizon, "LB", 1).train
         self.training_ts = ts
+
 
     def embed_test_data(self, ts):
 
@@ -566,6 +576,7 @@ class EDM():
                     embedding_vectors.append(embedding_vec)
 
         return embedding_vectors
+
 
     def predict_new_points_simplex(self, X_test):
 
@@ -613,6 +624,7 @@ class EDM():
 
         return predicted
 
+
     def predict_new_points_smap(self, X_test):
         X_train, y_train = map(list, zip(*self.lib))
         dist_matrix = create_distance_matrix(X_test, X_train)
@@ -642,6 +654,7 @@ class EDM():
             predicted.append(prediction)
 
         return predicted
+
 
     def predict(self, ts, hor=1):
 
@@ -704,7 +717,6 @@ class EDM():
 
         return df_simplex, df_smap
 
-    # Define a custom formatter function
 
     def plot_results(self):
 
@@ -799,6 +811,7 @@ class EDM():
 
         fig.show()
 
+
     def plot_predictions(self, ts, df_simplex, df_smap, path = ""):
 
         #TODO: Doesn't work when horizon = 1
@@ -886,18 +899,31 @@ class EDM():
         return 0
 
 
-def average_result(result, n_mae, n_corr):
+def average_result(results):
+
+    result = {}
+    result['observed'], result['predicted'] = [], []
+
+    for single_result in results:
+        result['observed'].append(single_result['observed'])
+        result['predicted'].append(single_result['predicted'])
+
+    corr_values = [result['corr'] for result in results]
+    mae_values = [result['mae'] for result in results]
+    rmse_values = [result['rmse'] for result in results]
+
     try:
-        result['corr'] = result['corr'] / n_corr
-    except ZeroDivisionError:
+        result['corr'] = statistics.mean(corr_values)
+    except:
         result['corr'] = None
 
     try:
-        result['mae'] = result['mae'] / n_mae
-        result['rmse'] = result['rmse'] / n_mae
-    except ZeroDivisionError:
+        result['mae'] = statistics.mean(mae_values)
+        result['rmse'] = statistics.mean(rmse_values)
+    except:
         result['mae'] = None
         result['rmse'] = None
+
     return result
 
 
@@ -963,8 +989,9 @@ if __name__ == "__main__":
     ts_train = ts_1[:20] + ts_2[:20]
     ts_test = ts_1[19:25] + ts_2[19:25]
 
-    model = EDM()
+    model = EDM(cv_method="RB", cv_fraction=0.25)
     model.train(ts_train)
+
     simplex, smap = model.predict(ts_test, 1)
     model.plot_predictions(ts_test, simplex, smap)
 
