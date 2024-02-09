@@ -36,11 +36,11 @@ def sample_multiple_rhos(n_replicates, vec_0, params, std_dev, n_points, obs_noi
 
 if __name__ == "__main__":
 
-    n_replicates = 25
-    n_iterations = 50
-    ts_length = 75
-    horizon = 10
-    test = ["initial_point", "rho"]
+    n_replicates = 1
+    n_iterations = 5
+    ts_length = 25
+    horizon = 1
+    test = ["initial_point"]
 
     # Set seed and navigate to results directory
     np.random.seed(123)

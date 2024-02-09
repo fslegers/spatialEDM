@@ -5,6 +5,7 @@ import pandas as pd
 from scipy.stats import pearsonr, ConstantInputWarning
 import statistics
 
+from sklearn.linear_model import LinearRegression
 
 
 class Point:
@@ -973,6 +974,53 @@ def create_distance_matrix(X, Y):
 
 def format_y_axis(value, _):
     return f"{value:.2f}"
+
+
+def normalize(values):
+
+    "Scale values to zero-mean and unit variance"
+
+    mean = np.mean(values)
+    std_dev = np.std(values)
+
+    normalized_data = (values - mean)/std_dev
+
+    return normalized_data, mean, std_dev
+
+
+def reverse_normalization(values, mean, std_dev):
+
+    "Transform values back to original range"
+
+    data = std_dev * values + mean
+
+    return data
+
+
+def remove_linear_trend(values, time_stamps):
+
+    if not isinstance(time_stamps, np.ndarray):
+        time_stamps = np.array(time_stamps)
+
+    x = time_stamps.reshape(-1,1)
+    model = LinearRegression().fit(x,values)
+    trend = model.predict(x)
+    detrended_data = values - trend
+
+    return detrended_data, model
+
+
+def add_linear_trend(model, predictions, time_stamps):
+
+    if not isinstance(time_stamps, np.ndarray):
+        time_stamps = np.array(time_stamps)
+
+    x = time_stamps.reshape(-1,1)
+    trend = model.predict(x)
+    predictions += trend
+
+    return predictions
+
 
 
 if __name__ == "__main__":
