@@ -1,8 +1,13 @@
+import matplotlib.pyplot as plt
 import pandas as pd
 
 from src.classes import *
 from src.simulate_lorenz import *
 import numpy as np
+
+import statsmodels.api as sm
+from statsmodels.formula.api import ols
+from statsmodels.stats.multicomp import pairwise_tukeyhsd
 
 
 def calculate_performance(result):
@@ -27,49 +32,13 @@ def sample_lorenz(vec_0, params, n_points, obs_noise):
     return x, t
 
 
-def test_with_preprocessing(x, t):
+def modelling(x, t, remove_trend, normalization):
 
-    #x, mean, std_dev = normalize(x)
-    x, trend_model = remove_linear_trend(x, t)
+    if remove_trend:
+        x, trend_model = remove_linear_trend(x, t)
 
-    # Turn into points
-    ts = []
-    for i in range(len(x)):
-        ts.append(Point(x[i], t[i], "A", "A"))
-
-    # Split time series
-    ts_train = [point for point in ts if point.time_stamp <= 100]
-    ts_test = [point for point in ts if point.time_stamp > 100]
-
-    # Train model
-    model = EDM()
-    model.train(ts_train, max_dim=5)
-
-    # Predict test points
-    simplex, smap = model.predict(ts_test, hor=1)
-
-    # Add back trend
-    simplex['obs'] = add_linear_trend(trend_model, simplex['obs'], simplex['time_stamp'])
-    simplex['pred'] = add_linear_trend(trend_model, simplex['pred'], simplex['time_stamp'])
-    smap['obs'] = add_linear_trend(trend_model, smap['obs'], smap['time_stamp'])
-    smap['pred'] = add_linear_trend(trend_model, smap['pred'], smap['time_stamp'])
-
-    # # Add back mean and variance
-    # simplex['obs'] = reverse_normalization(simplex['obs'], mean, std_dev)
-    # simplex['pred'] = reverse_normalization(simplex['pred'], mean, std_dev)
-    # smap['obs'] = reverse_normalization(smap['obs'], mean, std_dev)
-    # smap['pred'] = reverse_normalization(smap['pred'], mean, std_dev)
-
-    # Calculate performance measures
-    simplex_perf = calculate_performance(simplex)
-    smap_perf = calculate_performance(smap)
-
-    return simplex_perf, smap_perf
-
-
-def test_without_preprocessing(x, t):
-
-    #x, trend_model = remove_linear_trend(x, t)
+    if normalization:
+        x, mean, std_dev = normalize(x)
 
     # Turn into points
     ts = []
@@ -77,27 +46,31 @@ def test_without_preprocessing(x, t):
         ts.append(Point(x[i], t[i], "A", "A"))
 
     # Split time series
-    ts_train = [point for point in ts if point.time_stamp <= 100]
-    ts_test = [point for point in ts if point.time_stamp > 100]
+    ts_train = [point for point in ts if point.time_stamp <= 25]
+    ts_test = [point for point in ts if point.time_stamp > 25]
 
     # Train model
     model = EDM()
     model.train(ts_train, max_dim=5)
 
     # Predict test points
-    simplex, smap = model.predict(ts_test, hor=1)
+    _, smap = model.predict(ts_test, hor=1)
 
-    # # Add back trend
-    # simplex['obs'] = add_linear_trend(trend_model, simplex['obs'], simplex['time_stamp'])
-    # simplex['pred'] = add_linear_trend(trend_model, simplex['pred'], simplex['time_stamp'])
-    # smap['obs'] = add_linear_trend(trend_model, smap['obs'], smap['time_stamp'])
-    # smap['pred'] = add_linear_trend(trend_model, smap['pred'], smap['time_stamp'])
+    if normalization:
+        # Add back mean and variance
+        smap['obs'] = reverse_normalization(smap['obs'], mean, std_dev)
+        smap['pred'] = reverse_normalization(smap['pred'], mean, std_dev)
+
+    if remove_trend:
+        # Add back trend
+        smap['obs'] = add_linear_trend(trend_model, smap['obs'], smap['time_stamp'])
+        smap['pred'] = add_linear_trend(trend_model, smap['pred'], smap['time_stamp'])
+
 
     # Calculate performance measures
-    simplex_perf = calculate_performance(simplex)
-    smap_perf = calculate_performance(smap)
+    result = calculate_performance(smap)
 
-    return simplex_perf, smap_perf
+    return result['RMSE']
 
 
 if __name__ == "__main__":
@@ -108,50 +81,57 @@ if __name__ == "__main__":
 
     # select 50 different initial points from this trajectory
     initial_vecs = []
-    indices = np.random.randint(len(x), size=50)
+    indices = np.random.randint(len(x), size=25) #TODO: CHANGE BACK TO 250
 
     for i in indices:
         initial_vecs.append([x[i], y[i], z[i]])
 
-    simplex_results = pd.DataFrame(columns=range(6))
-    smap_results = pd.DataFrame(columns=range(6))
+    # Prepare to save results
+    no_preprocessing = []
+    trend_removed = []
+    normalized = []
+    trend_removed_normalized = []
 
-    for i in range(50):
+    for i in range(25): #TODO: CHANGE BACK TO 250
 
-        x_, t_ = sample_lorenz(initial_vecs[i], [10, 28, 8/3], 150, 0)
+        x, t = sample_lorenz(initial_vecs[i], [10, 28, 8/3], 50, 0)
 
-        simplex_1, smap_1 = test_without_preprocessing(x_, t_)
-        simplex_2, smap_2 = test_with_preprocessing(x_, t_)
+        no_preprocessing.append(modelling(x, t, False, False))
+        trend_removed.append(modelling(x, t, True, False))
+        normalized.append(modelling(x, t, False, True))
+        trend_removed_normalized.append(modelling(x, t, True, True))
 
-        simplex_row = pd.DataFrame([[simplex_1['RMSE'], simplex_1['MAE'], simplex_1['corr'],
-                       simplex_2['RMSE'], simplex_2['MAE'], simplex_2['corr']]])
+    # Check normality
+    fix, axs = plt.subplots(2, 2)
+    axs[0,0].hist(no_preprocessing, bins=20)
+    axs[0,0].set_title("No preprocessing")
+    axs[0, 1].hist(trend_removed_normalized, bins=20)
+    axs[0, 1].set_title("Trend removed and normalized")
+    axs[1, 0].hist(trend_removed, bins=20)
+    axs[1, 0].set_title("Trend removed")
+    axs[1, 1].hist(normalized, bins=20)
+    axs[1, 1].set_title("Normalized")
+    plt.tight_layout()
+    plt.show()
 
-        smap_row = pd.DataFrame([[smap_1['RMSE'], smap_1['MAE'], smap_1['corr'],
-                    smap_2['RMSE'], smap_2['MAE'], smap_2['corr']]])
+    # Do repeated measures ANOVA
+    data = {'RMSE': no_preprocessing + trend_removed + normalized + trend_removed_normalized,
+            'group': ["none"] * len(no_preprocessing) + ["trend"] * len(trend_removed) +
+                     ["norm"] * len(normalized) + ["both"] * len(trend_removed_normalized),
+            'subject': list(range(1, len(normalized) + 1)) * 4
+            }
+    df = pd.DataFrame(data)
 
-        simplex_results = pd.concat([simplex_results, simplex_row])
-        smap_results = pd.concat([smap_results, smap_row])
+    # Fit repeated measures ANOVA model
+    model = ols('RMSE ~ C(group) + C(subject)', data=df).fit()
 
+    # Perform ANOVA
+    anova_table = sm.stats.anova_lm(model, typ=2)
 
-    print("### SIMPLEX ###")
-    print("Summary statistics for RMSE without preprocessing:")
-    print(simplex_results[0].describe())
-    print()
-    print(f"Summary statistics for RMSE with preprocessing:")
-    print(simplex_results[3].describe())
-    print()
-    simplex_percentage = (simplex_results.iloc[:,0] < simplex_results.iloc[:,3]).mean() * 100
-    print("Preprocessing gave better results in " + str(simplex_percentage) + "% of the cases.")
-    print("-----------------------------------------------------------------------------------")
-    print()
+    print(anova_table)
 
-    print("### S-MAP ###")
-    print("Summary statistics for RMSE without preprocessing:")
-    print(smap_results[0].describe())
-    print()
-    print(f"Summary statistics for RMSE with preprocessing:")
-    print(smap_results[3].describe())
-    print()
-    smap_percentage = (smap_results.iloc[:, 0] < smap_results.iloc[:, 3]).mean() * 100
-    print("Preprocessing gave better results in " + str(smap_percentage) + "% of the cases.")
+    # Perform pairwise post-hoc tests (e.g., Tukey HSD)
+    tukey_results = pairwise_tukeyhsd(endog=df['RMSE'], groups=df['group'])
+    print(tukey_results)
+
 
