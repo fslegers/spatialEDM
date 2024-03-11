@@ -104,7 +104,7 @@ def plot_RMSE_vs_variance(df):
 if __name__ == '__main__':
     # Load CSV file into a pandas DataFrame
     folder_path  = 'C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten'
-    folder_path = folder_path + '/05-03-24'
+    folder_path = folder_path + '/04-03-24'
     file_path = folder_path + '/summarized/results.csv'
     df = pd.read_csv(file_path)
 
@@ -112,8 +112,8 @@ if __name__ == '__main__':
     #df = df[df.hor < 5]
 
     plot_RMSE_vs_horizon(df)
-    #plot_RMSE_vs_noise(df)
-    #plot_RMSE_vs_variance(df)
+    plot_RMSE_vs_noise(df)
+    plot_RMSE_vs_variance(df)
 
 
 

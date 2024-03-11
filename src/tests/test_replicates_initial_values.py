@@ -10,22 +10,29 @@ import time
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 def sample_lorenz(vec_0, params, n_points, obs_noise):
-
-    x, y, z, t = simulate_lorenz(vec_0, params, n_points * 100, n_points, obs_noise) #TODO: maybe tmax should be different?
+    x, y, z, t = simulate_lorenz(vec_0, params, n_points * 100, n_points, obs_noise)
     x, t = sample_from_ts(x, t, sampling_interval=5, n_points=n_points)
     t = [i for i in range(len(t))]
-
     return x, t
 
-def sample_multiple_initial_values(n_replicates, vec_0, std_dev, params, n_points, obs_noise):
+def sample_multiple_initial_values(n_replicates, vec_0, var, params, n_points, obs_noise):
     list_x, list_t = [], []
+
+    # Make lists of all initial values
+    x_0s, y_0s, z_0s = [], [], []
+
+    count = 0
+    while count < n_replicates:
+        x_0s.append(np.uniform(vec_0[0] - var, vec_0[0] + var))
+        y_0s.append(np.uniform(vec_0[1] - var, vec_0[1] + var))
+        z_0s.append(np.uniform(vec_0[2] - var, vec_0[2] + var))
+
+    # For each initial value, sample a trajectory
     for i in range(n_replicates):
-        x_0 = np.random.normal(vec_0[0], std_dev)
-        y_0 = np.random.normal(vec_0[1], std_dev)
-        z_0 = np.random.normal(vec_0[2], std_dev)
-        x, t = sample_lorenz([x_0, y_0, z_0], params, n_points, obs_noise)
+        x, t = sample_lorenz([x_0s[i], y_0s[i], z_0s[i]], params, n_points, obs_noise)
         list_x.append(x)
         list_t.append(t)
+
     return list_x, list_t
 
 def process_iteration(args):
@@ -43,16 +50,14 @@ def process_iteration(args):
     ts_test = [point for point in collection if point.time_stamp > ts_length]
 
     model = EDM()
-    model.train(ts_train, max_dim=10)
+    model.train(ts_train, max_dim=5)
 
     simplex, smap = model.predict(ts_test, hor=horizon)
+    del(simplex)
 
-    for i in range(len(simplex)):
-        row_simplex = {'obs_noise': obs_noise, 'init_var': init_var, 'hor': simplex['hor'][i], 'obs': simplex['obs'][i],
-                       'pred_simplex': simplex['pred'][i]}
-        row_smap = {'obs_noise': obs_noise, 'init_var': init_var, 'hor': smap['hor'][i], 'obs': smap['obs'][i],
-                    'pred_smap': smap['pred'][i]}
-        row = {**row_simplex, **row_smap}
+    for i in range(len(smap)):
+        row = {'obs_noise': obs_noise, 'init_var': init_var, 'hor': smap['hor'][i], 'obs': smap['obs'][i],
+                    'pred_smap': smap['pred'][i], 'E': model.dim, 'theta': model.theta}
         results.append(row)
 
     return results
@@ -62,7 +67,7 @@ if __name__ == "__main__":
     n_replicates = 12
     n_iterations = 100
     training_length = 25
-    max_horizon = 8
+    max_horizon = 5
 
     np.random.seed(123)
     os.chdir('../..')
@@ -77,7 +82,7 @@ if __name__ == "__main__":
     for i in indices:
         initial_vecs.append([x[i], y[i], z[i]])
 
-    initial_point_variances = [0, 1.0, 2.0, 3.0, 4.0, 5,0, 6.0, 7.0, 8.0, 9.0]
+    initial_point_variances = [0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]
     obs_noises = [0.0, 1.0, 2.0, 3.0, 4.0, 5.0]
 
     for obs_noise_index in range(len(obs_noises)):
@@ -85,7 +90,7 @@ if __name__ == "__main__":
 
         print("\n Starting round " + str(obs_noise_index + 1) + " of " + str(len(obs_noises)))
 
-        total_results = pd.DataFrame(columns=['obs_noise', 'init_var', 'hor', 'obs', 'pred_simplex', 'pred_smap'])
+        total_results = pd.DataFrame(columns=['obs_noise', 'init_var', 'hor', 'obs', 'pred_smap', 'E', 'theta'])
         for vec_0 in tqdm(initial_vecs, desc="Processing", unit="iteration"):
 
             with ProcessPoolExecutor(max_workers=10) as executor:
