@@ -1,11 +1,10 @@
 from src.classes import *
 from src.simulate_lorenz import *
-import pandas as pd
+from multiprocessing import Pool
+from itertools import product
+from functools import partial
 import warnings
 import os
-from concurrent.futures import ProcessPoolExecutor
-from tqdm import tqdm
-import time
 
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
@@ -15,94 +14,159 @@ def sample_lorenz(vec_0, params, n_points, obs_noise):
     t = [i for i in range(len(t))]
     return x, t
 
-def sample_multiple_initial_values(n_replicates, vec_0, var, params, n_points, obs_noise):
-    list_x, list_t = [], []
 
-    # Make lists of all initial values
-    x_0s, y_0s, z_0s = [], [], []
+def sample_initial_points(n):
+    # Generate one giant trajectory
+    x, y, z, t = simulate_lorenz([1, 1, 1], [10, 28, 8 / 3], 2000, 30, 0)
+    x, y, z = x[1000:], y[1000:], z[1000:]
 
-    count = 0
-    while count < n_replicates:
-        x_0s.append(np.uniform(vec_0[0] - var, vec_0[0] + var))
-        y_0s.append(np.uniform(vec_0[1] - var, vec_0[1] + var))
-        z_0s.append(np.uniform(vec_0[2] - var, vec_0[2] + var))
+    # Sample multiple initial points from it
+    initial_vecs = []
+    indices = np.random.randint(len(x), size=n)
+    for i in indices:
+        initial_vecs.append([x[i], y[i], z[i]])
 
-    # For each initial value, sample a trajectory
-    for i in range(n_replicates):
-        x, t = sample_lorenz([x_0s[i], y_0s[i], z_0s[i]], params, n_points, obs_noise)
+    return initial_vecs
+
+
+def sample_multiple_rhos(vec_0, n_points, n_repl, obs_noise, var):
+
+    list_x, list_t, list_preprocessing = [], [], []
+
+    i = 0
+    while i < n_repl:
+        rho = np.random.normal(28, var)
+        x, t = sample_lorenz(vec_0, [10, rho, 8/3], n_points, obs_noise)
+
+        # Preprocessing
+        x, preprocessing_info = preprocessing(x, t, loc=i+1)
+        list_preprocessing.append(preprocessing_info)
+
         list_x.append(x)
         list_t.append(t)
 
-    return list_x, list_t
+        i += 1
 
-def process_iteration(args):
-    init_var, n_replicates, vec_0, ts_length, obs_noise, horizon = args
-    results = []
+    return list_x, list_t, list_preprocessing
 
-    xs, ts = sample_multiple_initial_values(n_replicates, vec_0, init_var, [10, 28, 8 / 3], ts_length + 25, obs_noise)
 
-    collection = []
-    for i, (x, t) in enumerate(zip(xs, ts)):
-        for j in range(len(x)):
-            collection.append(Point(x[j], t[j], "A", i))
+def sample_multiple_initial_values(vec_0, n_points, n_repl, obs_noise, var):
 
-    ts_train = [point for point in collection if point.time_stamp <= ts_length]
-    ts_test = [point for point in collection if point.time_stamp > ts_length]
+    list_x, list_t, list_preprocessing = [], [], []
 
-    model = EDM()
-    model.train(ts_train, max_dim=5)
+    i = 0
+    while i < n_repl:
+        x_0 = np.random.normal(vec_0[0], var)
+        y_0 = np.random.normal(vec_0[1], var)
+        z_0 = np.random.normal(vec_0[2], var)
+        x, t = sample_lorenz([x_0, y_0, z_0], [10, 28, 8/3], n_points, obs_noise)
 
-    simplex, smap = model.predict(ts_test, hor=horizon)
-    del(simplex)
+        # Preprocessing
+        x, preprocessing_info = preprocessing(x, t, loc=i)
+        list_preprocessing.append(preprocessing_info)
 
-    for i in range(len(smap)):
-        row = {'obs_noise': obs_noise, 'init_var': init_var, 'hor': smap['hor'][i], 'obs': smap['obs'][i],
-                    'pred_smap': smap['pred'][i], 'E': model.dim, 'theta': model.theta}
-        results.append(row)
+        list_x.append(x)
+        list_t.append(t)
+        i += 1
 
-    return results
+    return list_x, list_t, list_preprocessing
 
-if __name__ == "__main__":
 
-    n_replicates = 12
-    n_iterations = 100
-    training_length = 25
-    max_horizon = 5
+def calculate_performance(result, preprocessing_info):
 
+    # Reverse preprocessing
+    result = reverse_preprocessing(result, preprocessing_info)
+
+    # Calculate performance measures
+    diff = np.subtract(result['obs'], result['pred'])
+    performance = {}
+    performance['MAE'] = np.mean(abs(diff))
+    performance['RMSE'] = math.sqrt(np.mean(np.square(diff)))
+
+    try:
+        performance['corr'] = pearsonr(result['obs'], result['pred'])[0]
+    except:
+        performance['corr'] = None
+
+    return performance
+
+
+
+def loop_over_noise_levels(argument, initial_vecs, n_replicates, training_length, max_horizon, test="begin_conditions", rho):
+
+    obs_noise = argument[0]
+    variance = argument[1]
+
+    for vec in initial_vecs:
+
+        # Sample replicate time series
+        if test == "begin_conditions":
+            xs, ts, preprocessing_info = sample_multiple_initial_values(vec, training_length + 10, n_replicates, obs_noise, variance)
+        else:
+            xs, ts, preprocessing_info = sample_multiple_rhos(vec, training_length + 10, n_replicates, obs_noise, variance)
+
+        # Put them together into one library
+        collection = []
+        for i, (a, b) in enumerate(zip(xs, ts)):
+                for j in range(len(a)):
+                    collection.append(Point(a[j], b[j], "A", i))
+        del (xs, ts)
+
+        # Split train and test set
+        ts_train = [point for point in collection if point.time_stamp < training_length]
+        ts_test = [point for point in collection if point.time_stamp >= training_length]
+        del (collection)
+
+        # Train model and predict test set
+        model = EDM(horizon = max_horizon, max_dim=int(np.sqrt(training_length)))
+        model.train(ts_train)
+        _, smap = model.predict(ts_test, hor=max_horizon)
+
+        # Measure performance
+        smap = smap.dropna()
+
+        result = []
+        for hor in range(1, max_horizon + 1):
+            result_hor = reverse_preprocessing(smap[smap['hor'] == hor], preprocessing_info)
+            result += result_hor
+
+        # Save results
+        data = pd.DataFrame(result)
+        file_name = f"C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/{test}/rho = {rho}/training_length = {training_length}, noise = {obs_noise}, var = {variance}.csv"
+        data.to_csv(file_name, index=False)
+        del (smap, result)
+
+
+def do_multiprocessing(func, argument_list):
+    with Pool(8) as pool:
+        pool.imap(func=func, iterable=argument_list)
+
+def repeatedly_do_EDM(n_iterations=50, n_replicates=0, training_length=25, max_horizon=1, test = "begin_conditions"):
+
+    # Parameters etc.
     np.random.seed(123)
     os.chdir('../..')
     os.chdir('results')
     os.chdir('output')
 
-    x, y, z, t = simulate_lorenz([1, 1, 1], [10, 28, 8/3], 2000, 30, 0)
-    x, y, z = x[1000:], y[1000:], z[1000:]
+    noise_levels = [0.0, 1.0, 2.0, 3.0]
+    begin_cond_var = [1.0, 4.0, 7.0, 10.0]
+    rho_var = [1.0, 3.0, 5.0, 7.0]
+    # ------------------------------------------------------------------------------------------------------------------
 
-    initial_vecs = []
-    indices = np.random.randint(len(x), size=n_iterations)
-    for i in indices:
-        initial_vecs.append([x[i], y[i], z[i]])
+    initial_vecs = sample_initial_points(n_iterations)
 
-    initial_point_variances = [0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]
-    obs_noises = [0.0, 1.0, 2.0, 3.0, 4.0, 5.0]
+    if test == "begin_conditions":
+        argument_list = product(noise_levels, begin_cond_var)
+        partial_function = partial(loop_over_noise_levels, initial_vecs, n_replicates, training_length, max_horizon, "begin_conditions")
+    else:
+        argument_list = product(noise_levels, rho_var)
+        partial_function = partial(loop_over_noise_levels, initial_vecs, n_replicates, training_length, max_horizon, "rho")
 
-    for obs_noise_index in range(len(obs_noises)):
-        obs_noise = obs_noises[obs_noise_index]
+    do_multiprocessing(func=partial_function, argument_list=argument_list)
 
-        print("\n Starting round " + str(obs_noise_index + 1) + " of " + str(len(obs_noises)))
 
-        total_results = pd.DataFrame(columns=['obs_noise', 'init_var', 'hor', 'obs', 'pred_smap', 'E', 'theta'])
-        for vec_0 in tqdm(initial_vecs, desc="Processing", unit="iteration"):
 
-            with ProcessPoolExecutor(max_workers=10) as executor:
-                args = [(init_var, n_replicates, vec_0, training_length, obs_noise, max_horizon) for init_var in initial_point_variances]
-                results_list = list(tqdm(executor.map(process_iteration, args), total=len(args), desc="Processing Initial Point Variance"))
-
-            results_df = pd.concat([pd.DataFrame(result) for result in results_list], ignore_index=True)
-            total_results = pd.concat([total_results, results_df])
-
-            path_name = "./initial point variance/obs_noise = " + str(obs_noise) + ", n_iterations = " + str(n_iterations) + ", n_replicates = " + str(n_replicates) + ", ts_length = " + str(
-                training_length) + ", hor = " + str(max_horizon) + ".csv"
-            total_results.to_csv(path_name, index=False)
 
 
 

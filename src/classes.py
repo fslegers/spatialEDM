@@ -740,19 +740,6 @@ class EDM():
 
         # TODO: make plots for RMSE/MAE
 
-        # axs[1].plot(x, results['mae_list'])
-        # axs[1].scatter(x, results['mae_list'])
-        # axs[1].set_ylabel("MAE")
-
-        # axs[2].plot(x, results['rmse_list'])
-        # axs[2].scatter(x, results['rmse_list'])
-        # axs[2].set_ylabel("RMSE")
-
-        # for i in range(1, len(results['corr_list']) + 1):
-            # axs[0,0].axvline(x=i, linestyle='--', color='grey', alpha=0.4)
-            # axs[1].axvline(x=i, linestyle='--', color='grey', alpha=0.4)
-            # axs[2].axvline(x=i, linestyle='--', color='grey', alpha=0.4)
-
         axs[0,0].set_xlabel("dimension")
 
         # Observed vs predictions
@@ -773,20 +760,6 @@ class EDM():
         axs[0,1].scatter(x, results['corr_list'])
         axs[0,1].set_ylabel("rho")
 
-        # axs[1].plot(x, results['mae_list'])
-        # axs[1].scatter(x, results['mae_list'])
-        # axs[1].set_ylabel("MAE")
-
-        # axs[2].plot(x, results['rmse_list'])
-        # axs[2].scatter(x, results['rmse_list'])
-        # axs[2].set_ylabel("RMSE")
-        # axs[2].set_ylabel("RMSE")
-
-        # for i in range(1, len(results['corr_list']) + 1):
-            # axs[0,1].axvline(x=i, linestyle='--', color='grey', alpha=0.4)
-            # axs[1].axvline(x=i, linestyle='--', color='grey', alpha=0.4)
-            # axs[2].axvline(x=i, linestyle='--', color='grey', alpha=0.4)
-
         axs[0,1].set_xlabel("theta")
         axs[0,1].sharey(axs[0,0])
 
@@ -796,19 +769,12 @@ class EDM():
         min_ = min([min(results['observed']), min(results['predicted'])])
         max_ = max([max(results['observed']), max(results['predicted'])])
         axs[1,1].plot([min_, max_], [min_, max_])
-        #axs[1,1].set_title("Simplex\n Observed vs Predicted")
         axs[1,1].set_xlabel("Observed")
         axs[1,1].set_ylabel("Predicted")
 
         line = plt.Line2D((.5, .5), (.1, .95), color="k", linewidth=1)
         fig.add_artist(line)
         plt.tight_layout(rect=[0, 0.1, 1, 0.9])
-
-        # # Apply the custom formatter to the y-axis
-        # axs[0, 0].yaxis.set_major_formatter(FuncFormatter(format_y_axis))
-        # axs[0, 1].yaxis.set_major_formatter(FuncFormatter(format_y_axis))
-        # axs[0, 0].yaxis.set_major_formatter(FuncFormatter(format_y_axis))
-        # axs[1, 1].yaxis.set_major_formatter(FuncFormatter(format_y_axis))
 
         fig.show()
 
@@ -959,7 +925,6 @@ def create_distance_matrix(X, Y):
     """
     Returns a matrix of distances between time-delayed embedding vectors in Y to vectors in X.
     """
-
     dist_matrix = np.zeros((len(X), len(Y)))
 
     for p in range(len(X)):
@@ -974,6 +939,47 @@ def create_distance_matrix(X, Y):
 
 def format_y_axis(value, _):
     return f"{value:.2f}"
+
+
+def preprocessing(x, t, loc):
+
+    x, trend_info = remove_linear_trend(x, t)
+    x, mean, std_dev = normalize(x)
+
+    return x, (loc, {'trend': trend_info, 'mean': mean, 'std_dev': std_dev})
+
+
+def reverse_preprocessing(result, preprocessing_info):
+
+    new_result = []
+
+    for loc in np.unique(result['location']):
+        df_result = result[result['location'] == loc]
+
+        for x,y in preprocessing_info:
+            if x == loc:
+                trend = y['trend']
+                mean = y['mean']
+                std_dev = y['std_dev']
+                break
+
+        new_observed = reverse_normalization(df_result['obs'], mean, std_dev)
+        new_observed = add_linear_trend(new_observed, trend, df_result['time_stamp'].values)
+
+        new_predicted = reverse_normalization(df_result['pred'], mean, std_dev)
+        new_predicted = add_linear_trend(new_predicted, trend, df_result['time_stamp'].values)
+
+        df_result = pd.DataFrame({
+            'location': [loc] * len(new_observed),
+            'species': ['A'] * len(new_observed),
+            'time_stamp': df_result['time_stamp'],
+            'obs': new_observed,
+            'pred': new_predicted
+        })
+
+        new_result.append(df_result)
+
+    return pd.concat(new_result, ignore_index=True)
 
 
 def normalize(values):
@@ -997,7 +1003,10 @@ def reverse_normalization(values, mean, std_dev):
     return data
 
 
-def remove_linear_trend(values, time_stamps):
+def remove_linear_trend(values, time_stamps=[]):
+
+    if not time_stamps:
+        time_stamps = range(len(values))
 
     if not isinstance(time_stamps, np.ndarray):
         time_stamps = np.array(time_stamps)
@@ -1010,17 +1019,24 @@ def remove_linear_trend(values, time_stamps):
     return detrended_data, model
 
 
-def add_linear_trend(model, predictions, time_stamps):
+def add_linear_trend(values, model, time_stamps=[]):
+
+    try:
+        if not time_stamps:
+            time_stamps = range(len(values))
+        else:
+            pass
+    except:
+        pass
 
     if not isinstance(time_stamps, np.ndarray):
         time_stamps = np.array(time_stamps)
 
     x = time_stamps.reshape(-1,1)
     trend = model.predict(x)
-    predictions += trend
+    values += trend
 
-    return predictions
-
+    return values
 
 
 if __name__ == "__main__":

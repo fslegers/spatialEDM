@@ -41,7 +41,7 @@ def sample_multiple_initial_values(vec_0, n_points, remove_trend, normalization,
             x_0 = np.random.normal(vec_0[0], var)
             y_0 = np.random.normal(vec_0[1], var)
             z_0 = np.random.normal(vec_0[2], var)
-            x, t = sample_lorenz([x_0, y_0, z_0], [10, 28, 8 / 3], 100, obs_noise)
+            x, t = sample_lorenz([x_0, y_0, z_0], [10, 20, 8 / 3], 100, obs_noise)
 
             if remove_trend:
                 x, trend_model = remove_linear_trend(x, t)
@@ -59,7 +59,7 @@ def sample_multiple_initial_values(vec_0, n_points, remove_trend, normalization,
             x_0 = np.random.normal(vec_0[0], var)
             y_0 = np.random.normal(vec_0[1], var)
             z_0 = np.random.normal(vec_0[2], var)
-            x, t = sample_lorenz([x_0, y_0, z_0], [10, 28, 8 / 3], 45, obs_noise)
+            x, t = sample_lorenz([x_0, y_0, z_0], [10, 20, 8 / 3], 45, obs_noise)
             t = [time + 55 for time in t]
 
             if remove_trend:
@@ -80,7 +80,7 @@ def sample_multiple_initial_values(vec_0, n_points, remove_trend, normalization,
             x_0 = np.random.normal(vec_0[0], var)
             y_0 = np.random.normal(vec_0[1], var)
             z_0 = np.random.normal(vec_0[2], var)
-            x, t = sample_lorenz([x_0, y_0, z_0], [10, 28, 8/3], n_points, obs_noise)
+            x, t = sample_lorenz([x_0, y_0, z_0], [10, 20, 8/3], n_points, obs_noise)
 
             if remove_trend:
                 x, trend_model = remove_linear_trend(x, t)
@@ -149,7 +149,7 @@ def modelling(vec_0, train_length, remove_trend, normalization, n_repl, obs_nois
 def modelling_parallel(vec):
     results = {}
 
-    train_length = 25
+    train_length = 50
     n_replicates = 12
     obs_noise = 1.0
     var = 1.0
@@ -163,7 +163,7 @@ def modelling_parallel(vec):
 
 if __name__ == '__main__':
     # simulate one big giant Lorenz attractor without transient
-    x, y, z, t = simulate_lorenz([1, 1, 1], [10, 28, 8 / 3], 2000, 35, 0)
+    x, y, z, t = simulate_lorenz([1, 1, 1], [10, 20, 8 / 3], 2000, 35, 0)
     x, y, z = x[1000:], y[1000:], z[1000:]
 
     # select different initial points from this trajectory
@@ -181,7 +181,7 @@ if __name__ == '__main__':
     print("--- Starting main loop ---")
 
     # Parallelize the loop
-    with Pool(processes=10) as pool:
+    with Pool(processes=5) as pool:
         results = list(tqdm(pool.map(modelling_parallel, initial_vecs), total=len(initial_vecs)))
 
     for result in results:

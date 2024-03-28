@@ -108,9 +108,9 @@ def modelling(vec_0, train_length, remove_trend, normalization, n_repl, obs_nois
 def modelling_parallel(vec):
     results = {}
 
-    train_length = 25
-    n_replicates = 25
-    obs_noise = 0.1
+    train_length = 50
+    n_replicates = 12
+    obs_noise = 1.0
     var = 1.0
 
     results['FF'] = modelling(vec, train_length, False, False, n_replicates, obs_noise, var)['RMSE']
