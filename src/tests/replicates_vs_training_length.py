@@ -94,7 +94,7 @@ def sample_multiple_rhos(vec_0, n_points, n_repl, obs_noise, var):
 def perform_EDM(og, initial_point, length, n_replicates, noise, variance, max_dim=10, test="begin_conditions"):
 
     x, t, preprocessing_info = og[0], og[1], og[2]
-    original_length = len(x) - 10
+    original_length = len(x) - 5
 
     if n_replicates > 0:
         if test == "begin_conditions":
@@ -105,11 +105,11 @@ def perform_EDM(og, initial_point, length, n_replicates, noise, variance, max_di
                                                                    noise, variance)
 
         # from original time series, select last values and add these to the list of replicates
-        xs, ts = [x[-(length+10):]] + new_x, [t[-(length+10):]] + new_t
+        xs, ts = [x[-(length+5):]] + new_x, [t[-(length+5):]] + new_t
 
     else:
         if len(x) != length:
-            xs, ts = [x[-(length+10):]], [t[-(length+10):]]
+            xs, ts = [x[-(length+5):]], [t[-(length+5):]]
         else:
             xs, ts = x, t
 
@@ -255,11 +255,11 @@ def run_imap_multiprocessing(func, argument_list, num_processes):
 def loop(original_length, replicates_length):
 
     n_iterations = 50
-    rho = 20
-    noise_levels = [0.0, 1.0, 2.0]
+    rho = 28
+    noise_levels = [0.0, 1.0, 2.0, 3.0, 4.0, 5.0]
     begin_cond_var = [1.0, 5.5, 10.0]
     rho_var = [1.0, 3.0, 5.0]
-    n_processes = 9
+    n_processes = 4
 
     # Sample initial point for each iteration
     initial_points = sample_initial_points(n_iterations, rho)
@@ -277,7 +277,7 @@ def loop(original_length, replicates_length):
                                            argument_list=argument_list,
                                            num_processes=n_processes)
     data = pd.DataFrame(result_list)
-    file_name = f"C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/length vs replicates/begin conditions/{original_length} vs {replicates_length}, rho = {rho}.csv"
+    file_name = f"C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/length vs replicates/test set = 5/begin conditions/{original_length} vs {replicates_length}, rho = {rho}.csv"
     data.to_csv(file_name, index=False)
     del(argument_list, result_list, data)
 
@@ -287,7 +287,7 @@ def loop(original_length, replicates_length):
                                            argument_list=argument_list,
                                            num_processes=n_processes)
     data = pd.DataFrame(result_list)
-    file_name = f"C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/length vs replicates/rho/{original_length} vs {replicates_length}, rho = {rho}.csv"
+    file_name = f"C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/length vs replicates/test set = 5/rho/{original_length} vs {replicates_length}, rho = {rho}.csv"
     data.to_csv(file_name, index=False)
     del (argument_list, result_list, data)
 

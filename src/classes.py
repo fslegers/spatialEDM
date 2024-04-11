@@ -534,7 +534,6 @@ class EDM():
         self.smap(ts)
 
         #self.plot_results()
-
         self.lib = Library(ts, self.dim, self.lag, self.horizon, "LB", 1).train
         self.training_ts = ts
 
