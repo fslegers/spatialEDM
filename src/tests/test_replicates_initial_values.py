@@ -1,3 +1,5 @@
+import numpy as np
+
 from src.classes import *
 from src.simulate_lorenz import *
 from multiprocessing import Pool
@@ -30,7 +32,6 @@ def sample_initial_points(n):
 
 
 def sample_multiple_rhos(vec_0, n_points, n_repl, obs_noise, var):
-
     list_x, list_t, list_preprocessing = [], [], []
 
     i = 0
@@ -39,19 +40,17 @@ def sample_multiple_rhos(vec_0, n_points, n_repl, obs_noise, var):
         x, t = sample_lorenz(vec_0, [10, rho, 8/3], n_points, obs_noise)
 
         # Preprocessing
-        x, preprocessing_info = preprocessing(x, t, loc=i+1)
+        x, preprocessing_info = preprocessing(x, t, loc=i)
         list_preprocessing.append(preprocessing_info)
 
         list_x.append(x)
         list_t.append(t)
-
         i += 1
 
     return list_x, list_t, list_preprocessing
 
 
 def sample_multiple_initial_values(vec_0, n_points, n_repl, obs_noise, var):
-
     list_x, list_t, list_preprocessing = [], [], []
 
     i = 0
@@ -73,7 +72,6 @@ def sample_multiple_initial_values(vec_0, n_points, n_repl, obs_noise, var):
 
 
 def calculate_performance(result, preprocessing_info):
-
     # Reverse preprocessing
     result = reverse_preprocessing(result, preprocessing_info)
 
@@ -91,57 +89,62 @@ def calculate_performance(result, preprocessing_info):
     return performance
 
 
+def loop_over_noise_levels(argument, n_replicates, training_length, max_horizon, test, rho):
+    if n_replicates == 0:
+        obs_noise = argument[1][0]
+        variance = 0.0
+        vec = argument[1][1]
+        iter = argument[0]
+    else:
+        obs_noise = argument[1][0]
+        variance = argument[1][1]
+        vec = argument[1][2]
+        iter = argument[0]
 
-def loop_over_noise_levels(argument, initial_vecs, n_replicates, training_length, max_horizon, test="begin_conditions", rho):
+    # Sample replicate time series
+    if test == "begin_conditions":
+        xs, ts, preprocessing_info = sample_multiple_initial_values(vec, training_length + 25, n_replicates, obs_noise,
+                                                                    variance)
+    else:
+        xs, ts, preprocessing_info = sample_multiple_rhos(vec, training_length + 25, n_replicates, obs_noise, variance)
 
-    obs_noise = argument[0]
-    variance = argument[1]
+    # Put them together into one library
+    collection = []
+    for i, (a, b) in enumerate(zip(xs, ts)):
+        for j in range(len(a)):
+            collection.append(Point(a[j], b[j], "A", i))
+    del xs, ts
 
-    for vec in initial_vecs:
+    # Split train and test set
+    ts_train = [point for point in collection if point.time_stamp <= training_length]
+    ts_test = [point for point in collection if point.time_stamp > training_length]
+    del collection
 
-        # Sample replicate time series
-        if test == "begin_conditions":
-            xs, ts, preprocessing_info = sample_multiple_initial_values(vec, training_length + 10, n_replicates, obs_noise, variance)
-        else:
-            xs, ts, preprocessing_info = sample_multiple_rhos(vec, training_length + 10, n_replicates, obs_noise, variance)
+    # Train model and predict test set
+    model = EDM(max_dim=max(int(np.sqrt(training_length)), 10))
+    model.train(ts_train)
+    _, smap = model.predict(ts_test, hor=max_horizon)
 
-        # Put them together into one library
-        collection = []
-        for i, (a, b) in enumerate(zip(xs, ts)):
-                for j in range(len(a)):
-                    collection.append(Point(a[j], b[j], "A", i))
-        del (xs, ts)
+    # Measure performance
+    smap = smap.dropna()
 
-        # Split train and test set
-        ts_train = [point for point in collection if point.time_stamp < training_length]
-        ts_test = [point for point in collection if point.time_stamp >= training_length]
-        del (collection)
-
-        # Train model and predict test set
-        model = EDM(horizon = max_horizon, max_dim=int(np.sqrt(training_length)))
-        model.train(ts_train)
-        _, smap = model.predict(ts_test, hor=max_horizon)
-
-        # Measure performance
-        smap = smap.dropna()
-
-        result = []
-        for hor in range(1, max_horizon + 1):
-            result_hor = reverse_preprocessing(smap[smap['hor'] == hor], preprocessing_info)
-            result += result_hor
-
-        # Save results
-        data = pd.DataFrame(result)
-        file_name = f"C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/{test}/rho = {rho}/training_length = {training_length}, noise = {obs_noise}, var = {variance}.csv"
+    for hor in range(1, max_horizon + 1):
+        result_hor = reverse_preprocessing(smap[smap['hor'] == hor], preprocessing_info)
+        data = pd.DataFrame(result_hor)
+        file_name = f"C:/Users/fleur/Documents/Resultaten/{test}/rho = {rho}/training_length = {training_length}, " \
+                    f"n_repl = {n_replicates}, noise = {obs_noise}, var = {variance}, hor = {hor}, " \
+                    f"iter = {iter}.csv"
         data.to_csv(file_name, index=False)
-        del (smap, result)
 
 
 def do_multiprocessing(func, argument_list):
-    with Pool(8) as pool:
+    with Pool(16) as pool:
         pool.imap(func=func, iterable=argument_list)
+        pool.close()
+        pool.join()
 
-def repeatedly_do_EDM(n_iterations=50, n_replicates=0, training_length=25, max_horizon=1, test = "begin_conditions"):
+
+def repeatedly_do_EDM(n_iterations=100, n_replicates=1, training_length=25, max_horizon=1, test="begin_conditions", rho=28):
 
     # Parameters etc.
     np.random.seed(123)
@@ -149,24 +152,101 @@ def repeatedly_do_EDM(n_iterations=50, n_replicates=0, training_length=25, max_h
     os.chdir('results')
     os.chdir('output')
 
-    noise_levels = [0.0, 1.0, 2.0, 3.0]
-    begin_cond_var = [1.0, 4.0, 7.0, 10.0]
-    rho_var = [1.0, 3.0, 5.0, 7.0]
+    noise_levels = [0.0, 1.0, 2.0, 3.0, 4.0]
+    begin_cond_var = [1.0, 4.0, 7.0, 10.0, 13.0]
+    rho_var = [1.0, 3.0, 5.0, 7.0, 10.0]
+
     # ------------------------------------------------------------------------------------------------------------------
 
     initial_vecs = sample_initial_points(n_iterations)
 
     if test == "begin_conditions":
-        argument_list = product(noise_levels, begin_cond_var)
-        partial_function = partial(loop_over_noise_levels, initial_vecs, n_replicates, training_length, max_horizon, "begin_conditions")
+        argument_list = list(enumerate(product(noise_levels, begin_cond_var, initial_vecs)))
+
+        if n_replicates == 0:
+            argument_list = list(enumerate(product(noise_levels, initial_vecs)))
+
+        partial_function = partial(loop_over_noise_levels,
+                                   n_replicates=n_replicates,
+                                   training_length=training_length,
+                                   max_horizon=max_horizon,
+                                   test="begin_conditions",
+                                   rho=rho)
     else:
-        argument_list = product(noise_levels, rho_var)
-        partial_function = partial(loop_over_noise_levels, initial_vecs, n_replicates, training_length, max_horizon, "rho")
+        argument_list = list(enumerate(product(noise_levels, rho_var, initial_vecs)))
+
+        if n_replicates == 0:
+            argument_list = list(enumerate(product(noise_levels, initial_vecs)))
+
+        partial_function = partial(loop_over_noise_levels,
+                                   n_replicates=n_replicates,
+                                   training_length=training_length,
+                                   max_horizon=max_horizon,
+                                   test="rho",
+                                   rho=rho)
 
     do_multiprocessing(func=partial_function, argument_list=argument_list)
 
+if __name__ == "__main__":
+
+    print("------- rho = 20, begin conditions --------")
+    #rho = 20
+    count=0
+    for test in ["begin_conditions", "rho"]:
+        for training_length in [25, 50, 75, 100, 125, 150, 175, 200]:
+            repeatedly_do_EDM(n_iterations=100, max_horizon=10, test=test, training_length=training_length, n_replicates=0, rho=20)
+            print("Finished round " + str(count) + "of " + str(16))
+            count += 1
+
+    # print("------- rho = 28, rho --------")
+    # count = 0
+    # for test in ["rho"]:
+    #     for training_length in [25, 50, 75, 100]:
+    #         for n_replicates in [1, 2, 4, 8]:
+    #             if count > 10:
+    #                 repeatedly_do_EDM(n_iterations=100, max_horizon=10, test=test, training_length=training_length,
+    #                                   n_replicates=n_replicates, rho=28)
+    #                 print("Finished round " + str(count) + "of " + str(16))
+    #             count += 1
 
 
+    # print("------- rho = 20, begin conditions --------")
+    # count = 0
+    # for test in ["begin_conditions"]:
+    #     for training_length in [25, 50]:
+    #         for n_replicates in [1, 2, 4, 8]:
+    #
+    #             repeatedly_do_EDM(n_iterations=100, max_horizon=10, test=test, training_length=training_length, n_replicates=n_replicates, rho=20)
+    #             print("Finished round " + str(count) + "of " + str(16))
+    #             count += 1
+
+    # print("------- rho = 20, rho --------")
+    # count = 0
+    # for test in ["rho"]:
+    #     for training_length in [25, 50]:
+    #         for n_replicates in [1, 2, 4, 8]:
+    #             if count > 2:
+    #                 repeatedly_do_EDM(n_iterations=100, max_horizon=10, test=test, training_length=training_length,
+    #                                       n_replicates=n_replicates, rho=20)
+    #             print("Finished round " + str(count) + " of " + str(16))
+    #             count += 1
+    #             #0 1 2 done
 
 
-
+    # rho = 28
+    # count = 0
+    # for test in ["begin_conditions", "rho"]:
+    #     for training_length in [125, 150, 175, 200]:
+    #         for n_replicates in [1, 2, 4, 8, 16]:
+    #             repeatedly_do_EDM(n_iterations=100, max_horizon=6, test=test, training_length=training_length,
+    #                               n_replicates=n_replicates, rho = rho)
+    #             print("Finished round " + str(int(count / (2 * 4 * 5))))
+    #
+    # rho = 20
+    # count = 0
+    # for test in ["begin_conditions", "rho"]:
+    #     for training_length in [125, 150, 175, 200]:
+    #         for n_replicates in [1, 2, 4, 8, 16]:
+    #             repeatedly_do_EDM(n_iterations=100, max_horizon=6, test=test, training_length=training_length,
+    #                               n_replicates=n_replicates, rho = rho)
+    #             print("Finished round " + str(int(count / (2 * 4 * 5))))
