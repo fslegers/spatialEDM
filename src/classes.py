@@ -665,7 +665,6 @@ class EDM():
         results_smap = []
 
         for i in range(hor):
-
             # Simplex
             pred_simplex = self.predict_new_points_simplex(X_test)
             results_simplex.append(pred_simplex)
@@ -673,18 +672,31 @@ class EDM():
             # S-Map
             pred_smap = self.predict_new_points_smap(X_test)
             results_smap.append(pred_smap)
+            new_values = [(point.time_stamp, point.value) for point in pred_smap]
 
             # Add EmbeddingVector,Predicion-pairs to the training library
             self.lib += zip(X_test, pred_smap)
 
-            # Change X_test to predict forward from the predicted points
-            X_test = self.embed_test_data(pred_smap)
+            # Update the embedding vectors X_test
+            for pair in X_test:
+
+                # discard oldest value
+                pair.values = pair.values[1:]
+
+                # add prediction
+                new_value = [point[1] for point in new_values if point[0] == pair.next_time_stamp]
+                pair.values.append(new_value[0])
+
+                # change observed
+                pair.next_time_stamp += 1
+
+            #X_test = self.embed_test_data(pred_smap)
 
         # Create DataFrames
         simplex = results_simplex
         smap = results_smap
-
         data_frames = []
+
         for hor, sublist in enumerate(results_simplex, start=1):
             df_sub = {'location': [point.loc for point in simplex[hor-1]],
                        'species': [point.species for point in simplex[hor-1]],
@@ -704,7 +716,7 @@ class EDM():
         df_simplex = pd.merge(df_pred, df_obs, on=['location', 'species', 'time_stamp'], how='left')
 
         data_frames = []
-        for hor, sublist in enumerate(results_simplex, start=1):
+        for hor, sublist in enumerate(results_smap, start=1):
             df_sub = {'location': [point.loc for point in smap[hor-1]],
                        'species': [point.species for point in smap[hor-1]],
                        'time_stamp': [point.time_stamp for point in smap[hor-1]],
