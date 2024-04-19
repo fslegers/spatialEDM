@@ -14,10 +14,10 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 
 def sample_lorenz(x, y, z, t):
-    x_ = [x[i] for i in range(len(x)) if i % 5 == 0]
-    y_ = [y[i] for i in range(len(x)) if i % 5 == 0]
-    z_ = [z[i] for i in range(len(x)) if i % 5 == 0]
-    t_ = [t[i] for i in range(len(t)) if i % 5 == 0]
+    x_ = [x[i] for i in range(15000) if i % 5 == 0]
+    y_ = [y[i] for i in range(15000) if i % 5 == 0]
+    z_ = [z[i] for i in range(15000) if i % 5 == 0]
+    t_ = [t[i] for i in range(15000) if i % 5 == 0]
 
     return x_, y_, z_, t_
 
@@ -52,7 +52,7 @@ def get_one_RMSE(i, x, t, length, hor):
 
     return RMSE, time
 
-def create_plots(x, y, z, t, RMSEs, ts, length, noise, hor):
+def create_plots_RMSE(x, y, z, t, RMSEs, ts, length, noise, hor):
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
 
@@ -63,7 +63,7 @@ def create_plots(x, y, z, t, RMSEs, ts, length, noise, hor):
     ax.set_zlabel("z")
 
     # define color mapping function
-    max_rmse = np.percentile(RMSEs, 90)
+    max_rmse = np.percentile(RMSEs, 95)
 
     # add points to the plot
     dict = pd.DataFrame({'x':x, 'y':y, 'z':z, 't':t})
@@ -84,10 +84,10 @@ def create_plots(x, y, z, t, RMSEs, ts, length, noise, hor):
 
     sm = plt.cm.ScalarMappable(cmap=plt.cm.YlOrRd, norm=plt.Normalize(vmin=0, vmax=max_rmse))
     sm.set_array([])
-    fig.colorbar(sm, label='RMSE', shrink = .7)
+    fig.colorbar(sm, label='RMSE')
 
     plt.tight_layout()
-    plt.savefig(f'C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/RMSE on the attractor/len={length}, noise={noise}, hor={hor}.png')
+    plt.savefig(f'C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/RMSE on the attractor/len={length}, noise={noise}, hor={hor}.png', dpi=500)
 
 def loop(noise, length, hor):
     rho = 28
@@ -96,7 +96,7 @@ def loop(noise, length, hor):
     # Sample Lorenz trajectory
     x, y, z, t = simulate_lorenz([-10.59488751,-15.39807062,22.89394584], [10.0, rho, 8.0/3.0], lorenz_length * 5, lorenz_length * 5 / 1000, noise)
     x, y, z, t = sample_lorenz(x, y, z, t)
-    t = np.arange(len(x))
+    t = np.arange(lorenz_length)
 
     # Define partial function
     RMSEs, ts = [], []
@@ -106,26 +106,13 @@ def loop(noise, length, hor):
         ts.append(time_stamp)
 
     # Plot in 3D
-    create_plots(x, y, z, t, RMSEs, ts, length, noise, hor)
+    create_plots_RMSE(x, y, z, t, RMSEs, ts, length, noise, hor)
 
 
 if __name__ == '__main__':
 
-    for hor in [1, 2, 3]:
-        print(f"   --- horizon = {hor} ---   ")
-
-        print(f"Noise = 0.0, length = 25, hor = {hor}")
-        loop(0.0, 25, hor)
-
-        print(f"Noise = 0.0, length = 50, hor = {hor}")
-        loop(0.0, 50, hor)
-
-        print(f"Noise = 0.0, length = 75, hor = {hor}")
-        loop(0.0, 75, hor)
-
-        print(f"Noise = 0.0, length = 100, hor = {hor}")
-        loop(0.0, 100, hor)
-
-        print(f"Noise = 0.0, length = 125, hor = {hor}")
-        loop(0.0, 125, hor)
+    noise = 0.0
+    for hor in [3, 4, 5, 6, 7, 8, 9, 10]:
+        for length in [25, 50, 75, 100, 150]:
+            loop(noise, length, hor)
 

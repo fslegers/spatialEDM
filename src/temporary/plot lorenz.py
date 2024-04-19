@@ -42,10 +42,29 @@ def create_plots(rho):
     ax.set_zticks([])
 
     plt.tight_layout()
+
+    plt.savefig('rho = 28.png', dpi=500)
+
     plt.show()
 
     # plot x, y and z time series
+    plt.rc('font', size=15)
+
+    x, t = sample_from_ts(x, t, 5)
+    plt.plot(t[-50:], x[-50:], zorder=0, color='grey')
+
+    x[-50:] += np.random.normal(0, 1.5, size=len(x[-50:]))
+    plt.scatter(t[-50:], x[-50:])
+    plt.plot(t[-50:], x[-50:])
+
+    plt.xlabel('time')
+    plt.ylabel('x')
+
+    plt.xticks([])
+    plt.yticks([])
+
+    plt.show()
 
 
 if __name__ == "__main__":
-    create_plots(20)
+    create_plots(28)

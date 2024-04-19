@@ -539,7 +539,6 @@ class EDM():
 
 
     def embed_test_data(self, ts):
-
         embedding_vectors = []
 
         # Create embedding vectors for the test data
@@ -671,64 +670,55 @@ class EDM():
             # S-Map
             pred_smap = self.predict_new_points_smap(X_test)
             results_smap.append(pred_smap)
-            new_values = [(point.time_stamp, point.value) for point in pred_smap]
-
-            # Add EmbeddingVector,Predicion-pairs to the training library
-            self.lib += zip(X_test, pred_smap)
 
             # Update the embedding vectors X_test
             for pair in X_test:
 
                 # discard oldest value
-                pair.values = pair.values[1:]
+                pair.values = pair.values[:-1]
 
                 # add prediction
-                new_value = [point[1] for point in new_values if point[0] == pair.next_time_stamp]
-                pair.values.append(new_value[0])
+                new_value = [point.value for point in pred_smap if point.time_stamp == pair.next_time_stamp][0]
+                pair.values.insert(0, new_value)
 
-                # change observed
+                # update next_time_stamp
                 pair.next_time_stamp += 1
 
-            #X_test = self.embed_test_data(pred_smap)
-
-        # Create DataFrames
-        simplex = results_simplex
-        smap = results_smap
-        data_frames = []
-
-        for hor, sublist in enumerate(results_simplex, start=1):
-            df_sub = {'location': [point.loc for point in simplex[hor-1]],
-                       'species': [point.species for point in simplex[hor-1]],
-                       'time_stamp': [point.time_stamp for point in simplex[hor-1]],
-                       'pred': [point.value for point in simplex[hor-1]]}
-            df = pd.DataFrame(df_sub)
-            df['hor'] = hor
-            data_frames.append(df)
-        df_pred = pd.concat(data_frames, ignore_index=True)
-
+        ### Save results with correct horizon ###
+        # Get observed values
         df_obs = {'location': [point.loc for point in ts],
                   'species': [point.species for point in ts],
                   'time_stamp': [point.time_stamp for point in ts],
                   'obs': [point.value for point in ts]}
         df_obs = pd.DataFrame(df_obs)
 
+        # Get predictions + horizon for Simplex
+        df_pred = pd.DataFrame()
+        for hor, sublist in enumerate(results_simplex, start=1):
+            df_sub =pd.DataFrame({'location': [point.loc for point in results_simplex[hor-1]],
+                       'species': [point.species for point in results_simplex[hor-1]],
+                       'time_stamp': [point.time_stamp for point in results_simplex[hor-1]],
+                       'pred': [point.value for point in results_simplex[hor-1]]})
+            df_sub['hor'] = hor
+            df_pred = pd.concat([df_pred, df_sub], axis=0)
+
+        # Merge observations and predictions for Simplex
         df_simplex = pd.merge(df_pred, df_obs, on=['location', 'species', 'time_stamp'], how='left')
 
-        data_frames = []
+        # Get predictions + horizon for S-Map
+        df_pred = pd.DataFrame()
         for hor, sublist in enumerate(results_smap, start=1):
-            df_sub = {'location': [point.loc for point in smap[hor-1]],
-                       'species': [point.species for point in smap[hor-1]],
-                       'time_stamp': [point.time_stamp for point in smap[hor-1]],
-                       'pred': [point.value for point in smap[hor-1]]}
-            df = pd.DataFrame(df_sub)
-            df['hor'] = hor
-            data_frames.append(df)
-        df_pred = pd.concat(data_frames, ignore_index=True)
+            df_sub = pd.DataFrame({'location': [point.loc for point in results_smap[hor-1]],
+                       'species': [point.species for point in results_smap[hor-1]],
+                       'time_stamp': [point.time_stamp for point in results_smap[hor-1]],
+                       'pred': [point.value for point in results_smap[hor-1]]})
+            df_sub['hor'] = hor
+            df_pred = pd.concat([df_pred, df_sub], ignore_index=True)
 
+        # Merge observations and predictions for S-Map
         df_smap = pd.merge(df_pred, df_obs, on=['location', 'species', 'time_stamp'], how='left')
 
         return df_simplex, df_smap
-
 
     def plot_results(self):
 
@@ -1006,11 +996,8 @@ def normalize(values):
 
 
 def reverse_normalization(values, mean, std_dev):
-
     "Transform values back to original range"
-
     data = std_dev * values + mean
-
     return data
 
 
