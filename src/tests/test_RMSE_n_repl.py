@@ -1,8 +1,6 @@
 from multiprocessing import Pool
 from functools import partial
 
-import pandas as pd
-
 from src.classes import *
 from src.simulate_lorenz import *
 
@@ -73,7 +71,7 @@ def sample_multiple_rhos(vec_0, n_points, n_repl, obs_noise, var, rho):
 
     i = 0
     while i < n_repl:
-        rho = np.random.normal(28, var)
+        rho = np.random.normal(rho, var)
         x, t = sample_lorenz(vec_0, [10, rho, 8 / 3], n_points, obs_noise, n_points)
 
         # Preprocessing
@@ -86,6 +84,7 @@ def sample_multiple_rhos(vec_0, n_points, n_repl, obs_noise, var, rho):
         i += 1
 
     return list_x, list_t, list_preprocessing
+
 
 def perform_EDM(ts, initial_point, length, n_replicates, noise, variance, test, rho):
 
@@ -124,14 +123,11 @@ def perform_EDM(ts, initial_point, length, n_replicates, noise, variance, test, 
     # Measure performance
     smap = smap.dropna(how='any')
     results = calculate_performance(smap, [preprocessing_info])
-    results['dim'] = model.dim
-    results['theta'] = model.theta
-    results['rmse_list_theta'] = model.results_smap['rmse_list']
-    results['rmse_list_dim'] = model.results_simplex['rmse_list']
 
     return results
 
-def partial_function(variance, initial_points, n_replicates, length, noise, test, rho):
+
+def partial_function(n_repl, initial_points, variance, length, noise, test, rho):
     results = []
 
     for i in range(len(initial_points)):
@@ -143,12 +139,11 @@ def partial_function(variance, initial_points, n_replicates, length, noise, test
         ts = [x, t, preprocessing_info]
 
         # Perform EDM with on original time series
-        partial_result = perform_EDM(ts, v0, length, n_replicates, noise, variance, test, rho)
-        RMSE, corr, dim, theta = partial_result['RMSE'], partial_result['corr'], partial_result['dim'], partial_result['theta']
-        RMSE_list_theta, RMSE_list_dim = partial_result['rmse_list_theta'], partial_result['rmse_list_dim']
+        partial_result = perform_EDM(ts, v0, length, n_repl, noise, variance, test, rho)
+        RMSE = partial_result['RMSE']
 
-        row = {'noise': noise, 'variance': variance, 'rho': rho, 'length': length, 'test': test, 'n_repl': n_replicates,
-               'RMSE': RMSE, 'corr': corr, 'dim': dim, 'theta': theta, 'RMSE_list_theta': RMSE_list_theta, 'RMSE_list_dim':RMSE_list_dim}
+        row = {'noise': noise, 'variance': variance, 'rho': rho, 'length': length, 'test': test, 'n_repl': n_repl,
+               'RMSE': RMSE}
 
         results.append(row)
 
@@ -164,12 +159,12 @@ def run_imap_multiprocessing(func, argument_list, num_processes):
     return combined_df
 
 
-def loop(rho, noise, length, test, n_replicates):
+def loop(rho, length, noise, var, test):
     np.random.seed(123)
 
-    n_processes = 8
+    n_processes = 4
     n_iterations = 100
-    variances = np.arange(0.0, 12.0, 3.0)
+    n_repl = [0, 1, 2, 4, 8, 16, 32]
 
     # Sample initial point for each iteration
     initial_points = sample_initial_points(n_iterations, rho)
@@ -177,7 +172,7 @@ def loop(rho, noise, length, test, n_replicates):
     # Define partial function
     partial_func = partial(partial_function,
                            initial_points=initial_points,
-                           n_replicates=n_replicates,
+                           variance=var,
                            length=length,
                            noise=noise,
                            test=test,
@@ -186,55 +181,51 @@ def loop(rho, noise, length, test, n_replicates):
     # First, test with variance in begin conditions
     result_list = run_imap_multiprocessing(func=partial_func,
                                            num_processes=n_processes,
-                                           argument_list=variances)
+                                           argument_list=n_repl)
+
     data = pd.DataFrame(result_list)
     file_name = (f"C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/"
-                 f"hyperparameters for replicates/rho = {rho}/{test}/"
-                 f"length = {length}, noise = {noise}, n_repl = {n_replicates}.csv")
+                 f"RMSE vs n_repl/rho = {rho}/{test}/"
+                 f"length = {length}, noise = {noise}, var = {var}.csv")
     data.to_csv(file_name, index=False)
     del (result_list, data)
 
 
-if __name__ == '__main__':
-
+if __name__ == "__main__":
+    print('started round 1/6')
     rho = 28
-    test = "rho"
-    n_replicates = 8
+    for length in [25, 50, 75]:
+        for noise in [0.0, 2.0, 4.0]:
+            for var in [1, 3, 5, 7, 9]:
+                loop(rho, length, noise, var, 'begin_conditions')
 
-    print(f"Testing {test} for rho = {rho}")
-    for noise in [0.0, 2.0, 4.0]:
-        for len in [25, 50, 75, 100]:
-            loop(rho, noise, len, test, n_replicates)
+    print('started round 2/6')
+    for length in [25, 50, 75]:
+        for noise in [0.0, 2.0, 4.0]:
+            for var in [1, 3, 5, 7, 9]:
+                loop(rho, length, noise, var, 'rho')
 
-    ####################################################
-    test = "begin_conditions"
+    print('started round 3/6')
+    for length in [25, 50, 75]:
+        for noise in [0.0, 2.0, 4.0]:
+            for var in [1, 3, 5, 7, 9]:
+                loop(rho, length, noise, var, 'IC_on_attractor')
 
-    print(f"Testing {test} for rho = {rho}")
-    for noise in [0.0, 2.0, 4.0]:
-        for len in [25, 50, 75, 100]:
-            loop(rho, noise, len, test, n_replicates)
-
-    ####################################################
-
+    print('started round 4/6')
     rho = 20
-    test = "rho"
+    for length in [25, 50, 75]:
+        for noise in [0.0, 2.0, 4.0]:
+            for var in [1, 3, 5, 7, 9]:
+                loop(rho, length, noise, var, 'begin_conditions')
 
-    print(f"Testing {test} for rho = {rho}")
-    for noise in [0.0, 2.0, 4.0]:
-        for len in [25, 50, 75, 100]:
-            loop(rho, noise, len, test, n_replicates)
+    print('started round 5/6')
+    for length in [25, 50, 75]:
+        for noise in [0.0, 2.0, 4.0]:
+            for var in [1, 3, 5, 7, 9]:
+                loop(rho, length, noise, var, 'rho')
 
-    ####################################################
-    test = "begin_conditions"
-
-    print(f"Testing {test} for rho = {rho}")
-    for noise in [0.0, 2.0, 4.0]:
-        for len in [25, 50, 75, 100]:
-            loop(rho, noise, len, test, n_replicates)
-
-
-
-
-
-
-
+    print('started round 6/6')
+    for length in [25, 50, 75]:
+        for noise in [0.0, 2.0, 4.0]:
+            for var in [1, 3, 5, 7, 9]:
+                loop(rho, length, noise, var, 'IC_on_attractor')

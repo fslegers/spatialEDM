@@ -40,12 +40,19 @@ def get_parameters_from_name(file):
     noise = file[noise_i:noise_i + 3]
     noise = float(noise)
 
-    return len, noise
+    # sampling
+    interval_i = file.find('interval = ') + 11
+    interval = file[interval_i:interval_i + 2]
+    interval = interval.replace(".", "")
+    interval = int(interval)
+
+    return len, noise, interval
 
 
 def calculate_RMSEs(rho):
     # Load all CSV files from the folder into a pandas DataFrame
-    folder_path = (f"C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/single time series/rho = {rho}")
+    # folder_path = (f"C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/single time series/rho = {rho}")
+    folder_path = (f"C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/single time series/sampling interval/rho = {rho}")
 
     df = pd.DataFrame({'training_length': [], 'noise': [], 'hor': [], 'iter': [], 'RMSE': [], 'MAE': [], 'corr': []})
     for filename in os.listdir(folder_path):
@@ -56,7 +63,8 @@ def calculate_RMSEs(rho):
 
             len, noise = get_parameters_from_name(filename)
 
-            for hor, iter in product(range(1, 11), range(200)):
+            n_iter = result['iter'].max()
+            for hor, iter in product(range(1, 11), range(n_iter + 1)):
                 observed = result[(result['hor'] == hor) & (result['iter'] == iter)]['obs']
                 predicted = result[(result['hor'] == hor) & (result['iter'] == iter)]['pred']
                 RMSE, MAE, corr = calculate_performance_measures(observed, predicted)
@@ -67,13 +75,46 @@ def calculate_RMSEs(rho):
     # # plot predictions
     # plot_predictions(df)
 
-    save_path = f'C:/Users/fleur/Documents/Resultaten/summarized'
-    save_path = f"C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/single time series/rho = {rho}/summarized.csv"
+    #save_path = f'C:/Users/fleur/Documents/Resultaten/summarized'
+    # save_path = f"C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/single time series/rho = {rho}/summarized.csv"
+    save_path = f"C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/single time series/sampling interval/rho = {rho}/summarized.csv"
+    df.to_csv(save_path)
+
+def calculate_RMSEs_interval(rho):
+    # Load all CSV files from the folder into a pandas DataFrame
+    # folder_path = (f"C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/single time series/rho = {rho}")
+    folder_path = (f"C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/single time series/sampling interval/rho = {rho}")
+
+    df = pd.DataFrame({'training_length': [], 'noise': [], 'hor': [], 'sampling_interval': [], 'iter': [], 'RMSE': [], 'MAE': [], 'corr': []})
+    for filename in os.listdir(folder_path):
+        if filename.endswith('.csv') and filename.startswith('training'):
+            file_path = os.path.join(folder_path, filename)
+            result = pd.read_csv(file_path)
+            result = result.dropna(how='any')
+
+            len, noise, interval = get_parameters_from_name(filename)
+
+            n_iter = result['iter'].max()
+            for hor, iter in product(range(1, 11), range(n_iter + 1)):
+                observed = result[(result['hor'] == hor) & (result['iter'] == iter)]['obs']
+                predicted = result[(result['hor'] == hor) & (result['iter'] == iter)]['pred']
+                RMSE, MAE, corr = calculate_performance_measures(observed, predicted)
+                new_row = pd.DataFrame({'training_length': [len], 'noise': [noise], 'hor': [hor], 'sampling_interval': [interval],
+                                        'iter': [iter], 'RMSE': [RMSE], 'MAE': [MAE], 'corr': [corr]})
+                df = pd.concat([df, new_row], ignore_index=True)
+
+    # # plot predictions
+    # plot_predictions(df)
+
+    #save_path = f'C:/Users/fleur/Documents/Resultaten/summarized'
+    # save_path = f"C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/single time series/rho = {rho}/summarized.csv"
+    save_path = f"C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/single time series/sampling interval/rho = {rho}/summarized.csv"
     df.to_csv(save_path)
 
 
 def summarize_results(rho):
-    folder_path = f"C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/single time series/rho = {rho}/summarized.csv"
+    # folder_path = f"C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/single time series/rho = {rho}/summarized.csv"
+    folder_path = f"C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/single time series/sampling interval/rho = {rho}/summarized.csv"
 
     df = pd.read_csv(folder_path, index_col=False)
     df = df.iloc[:, 1:]
@@ -91,15 +132,44 @@ def summarize_results(rho):
     df = min.merge(max, how='inner', on=['training_length', 'noise', 'hor'])
     df = df.merge(mean, how='inner', on=['training_length', 'noise', 'hor'])
 
-    path = f"C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/single time series/rho = {rho}/mean and percentiles.csv"
+    # path = f"C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/single time series/rho = {rho}/mean and percentiles.csv"
+    path = f"C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/single time series/sampling interval/rho = {rho}/mean and percentiles.csv"
+    df.to_csv(path)
+
+def summarize_results_interval(rho):
+    # folder_path = f"C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/single time series/rho = {rho}/summarized.csv"
+    folder_path = f"C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/single time series/sampling interval/rho = {rho}/summarized.csv"
+
+    df = pd.read_csv(folder_path, index_col=False)
+    df = df.iloc[:, 1:]
+    df = df.drop(['iter'], axis=1)
+
+    min = df.groupby(['training_length', 'noise', 'hor', 'sampling_interval'], as_index=False).quantile(0.1) # 10%quantile
+    min = min.rename(columns={'RMSE': 'min_RMSE', 'MAE': 'min_MAE', 'corr': 'min_corr'})
+
+    max = df.groupby(['training_length', 'noise', 'hor', 'sampling_interval'], as_index=False).quantile(0.9) # 90% quantile
+    max = max.rename(columns={'RMSE': 'max_RMSE', 'MAE': 'max_MAE', 'corr': 'max_corr'})
+
+    mean = df.groupby(['training_length', 'noise', 'hor', 'sampling_interval'], as_index=False).mean()
+    mean = mean.rename(columns={'RMSE': 'mean_RMSE', 'MAE': 'mean_MAE', 'corr': 'mean_corr'})
+
+    df = min.merge(max, how='inner', on=['training_length', 'noise', 'hor', 'sampling_interval'])
+    df = df.merge(mean, how='inner', on=['training_length', 'noise', 'hor', 'sampling_interval'])
+
+    # path = f"C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/single time series/rho = {rho}/mean and percentiles.csv"
+    path = f"C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/single time series/sampling interval/rho = {rho}/mean and percentiles.csv"
     df.to_csv(path)
 
 
 if __name__ == "__main__":
 
     rho = 28
-    calculate_RMSEs(rho)
-    summarize_results(rho)
+    calculate_RMSEs_interval(rho)
+    summarize_results_interval(rho)
+
+    rho = 20
+    calculate_RMSEs_interval(rho)
+    summarize_results_interval(rho)
 
 
 

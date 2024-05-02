@@ -286,6 +286,8 @@ class EDM():
                 self.results_simplex['observed'] = result['observed']
                 self.results_simplex['predicted'] = result['predicted']
                 self.results_simplex['corr'] = result['corr']
+                self.results_simplex['rmse'] = result['rmse']
+                self.results_simplex['mae'] = result['mae']
                 self.results_simplex['dim'] = var
                 self.dim = var
 
@@ -298,6 +300,8 @@ class EDM():
                 self.results_smap['observed'] = result['observed']
                 self.results_smap['predicted'] = result['predicted']
                 self.results_smap['corr'] = result['corr']
+                self.results_smap['rmse'] = result['rmse']
+                self.results_smap['mae'] = result['mae']
                 self.results_smap['theta'] = var
                 self.theta = var
         else:

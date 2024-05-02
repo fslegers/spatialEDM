@@ -1,7 +1,10 @@
 import os
+import ast
 import pandas as pd
 import numpy as np
+import seaborn as sns
 from matplotlib import pyplot as plt
+
 from itertools import product
 import matplotlib.colors as col
 from matplotlib.lines import Line2D
@@ -11,9 +14,17 @@ def from_csv_to_df(path, filename):
     if filename.endswith(".csv"):
         # Read the CSV file into a DataFrame
         file_path = path + "/" + filename
-        df_file = pd.read_csv(file_path)
+        dfs = pd.read_csv(file_path)
 
-    return df_file
+        dfs['RMSE_list_dim'] = dfs['RMSE_list_dim'].apply(ast.literal_eval)
+        dfs['RMSE_list_theta'] = dfs['RMSE_list_theta'].apply(ast.literal_eval)
+
+        df_dims = pd.DataFrame(dfs['RMSE_list_dim'].to_list(), columns=['dim_' + str(i) for i in range(1, len(dfs['RMSE_list_dim'][0]) + 1)])
+        df_thetas = pd.DataFrame(dfs['RMSE_list_theta'].to_list(), columns=['theta_' + str(i) for i in range(len(dfs['RMSE_list_theta'][0]))])
+
+        dfs = pd.concat([dfs, df_dims, df_thetas], axis=1)
+
+    return dfs
 
 def combine_csv_files(path):
 
@@ -26,136 +37,122 @@ def combine_csv_files(path):
 
     return df
 
-def make_figures(df_og):
+def make_figures(df, rho, n_repl, test):
 
     tab20_colors = plt.cm.get_cmap('tab10', 10)
     markers = ['s', 'o', 'p']
-    plt.rc('font', size=14)
 
-    fig, axs = plt.subplots(1, 2, figsize = (10,4))
-    plt.subplots_adjust(hspace=15.0, wspace=1.0)
+    path = "C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/hyperparameters for replicates/Figures/"
 
-    length = 25
-    df = df_og[df_og['length'] == length]
-    counter = 0
-    for noise in [0.0, 2.0, 4.0]:
-        df_noise = df[(df['noise'] == noise)]
+    for length in [25, 50, 75, 100]:
+        for noise in [0.0, 2.0, 4.0]:
 
-        # Plot RMSE
-        axs[0].plot(df_noise['variance'], df_noise['mean_RMSE'], color=col.to_rgb(tab20_colors(counter)), label=noise)
-        axs[0].fill_between(df_noise['variance'], df_noise['min_RMSE'], df_noise['max_RMSE'], alpha=.1, color=col.to_rgb(tab20_colors(counter)))
-        axs[0].plot(df_noise['variance'], df_noise['min_RMSE'], color=col.to_rgb(tab20_colors(counter)), linewidth = .5, alpha=.5)
-        axs[0].plot(df_noise['variance'], df_noise['max_RMSE'], color=col.to_rgb(tab20_colors(counter)), linewidth = .5, alpha=.5)
-        axs[0].scatter(df_noise['variance'], df_noise['mean_RMSE'], color=col.to_rgb(tab20_colors(counter)), marker=markers[counter])
-        counter += 1
+            # Plot dimensions
+            for var in [0, 3, 6, 9]:
+                df_var = df[(df['length'] == length) & (df['noise'] == noise) & (df['variance'] == var)]
+                df_var = df_var.dropna(axis=1)
 
-    axs[0].set_xlabel('variance among replicates')
-    axs[0].set_ylabel('RMSE')
-    #axs[0].legend(title='noise', bbox_to_anchor=(1, 0.1))
+                colnames = ['dim_' + str(i) + '_mean' for i in range(1, 11)]
+                colnames = list(set(df_var.columns).intersection(set(colnames)))
+                colnames = sorted(colnames)
+                means = df_var[colnames].values[0]
 
-    length = 75
-    df = df_og[df_og['length'] == length]
-    counter = 0
-    for noise in [0.0, 2.0, 4.0]:
-        df_noise = df[(df['noise'] == noise)]
+                colnames = ['dim_' + str(i) + '_10th' for i in range(1, 11)]
+                colnames = list(set(df_var.columns).intersection(set(colnames)))
+                colnames = sorted(colnames)
+                percentiles_10 = df_var[colnames].values[0]
 
-        # Plot RMSE
-        axs[1].plot(df_noise['variance'], df_noise['mean_RMSE'], color=col.to_rgb(tab20_colors(counter)), label=noise)
-        axs[1].fill_between(df_noise['variance'], df_noise['min_RMSE'], df_noise['max_RMSE'], alpha=.1,
-                            color=col.to_rgb(tab20_colors(counter)))
-        axs[1].plot(df_noise['variance'], df_noise['min_RMSE'], color=col.to_rgb(tab20_colors(counter)), linewidth=.5,
-                    alpha=.5)
-        axs[1].plot(df_noise['variance'], df_noise['max_RMSE'], color=col.to_rgb(tab20_colors(counter)), linewidth=.5,
-                    alpha=.5)
-        axs[1].scatter(df_noise['variance'], df_noise['mean_RMSE'], color=col.to_rgb(tab20_colors(counter)),
-                       marker=markers[counter])
-        counter += 1
+                colnames = ['dim_' + str(i) + '_90th' for i in range(1, 11)]
+                colnames = list(set(df_var.columns).intersection(set(colnames)))
+                colnames = sorted(colnames)
+                percentiles_90 = df_var[colnames].values[0]
 
-    axs[1].set_xlabel('variance among replicates')
-    axs[1].set_ylabel('RMSE')
-    axs[1].legend(title='noise', bbox_to_anchor=(1.0, 0.8))
+                plt.plot(np.arange(1, len(means) + 1, 1), means, label=var)
+                plt.scatter(np.arange(1, len(means) + 1, 1), means)
 
-    axs[0].text(0.5, -0.3, '(a)', transform=axs[0].transAxes)
-    axs[1].text(0.5, -0.3, '(b)', transform=axs[1].transAxes)
+                #plt.fill_between(np.arange(1, len(means) + 1, 1), percentiles_10, percentiles_90, alpha=.1)
 
-    plt.tight_layout()
-    plt.show()
+            plt.title(f'rho = {rho}, length = {length}, noise = {noise}')
+            plt.legend(title='variance')
+            plt.xlabel("dimension")
+            plt.ylabel("RMSE")
 
+            file_name = path + f"dim/rho = {rho}, n_repl = {n_repl}, length = {length}, noise = {noise}, test = {test}.png"
+            plt.savefig(file_name)
+            plt.show()
 
-        # # plot dim
-        # counter = 0
-        # for noise in [0.0, 2.0, 4.0]:
-        #     df_noise = df[(df['noise'] == noise)]
-        #
-        #     plt.plot(df_noise['variance'], df_noise['mean_dim'], color=col.to_rgb(tab20_colors(counter)), label=noise)
-        #     plt.plot(df_noise['variance'], df_noise['min_dim'], color=col.to_rgb(tab20_colors(counter)),
-        #              linestyle='--')
-        #     plt.plot(df_noise['variance'], df_noise['max_dim'], color=col.to_rgb(tab20_colors(counter)),
-        #              linestyle='--')
-        #     plt.scatter(df_noise['variance'], df_noise['mean_dim'], color=col.to_rgb(tab20_colors(counter)), marker=markers[counter])
-        #     counter += 1
-        #
-        # plt.xlabel('variance among replicates')
-        # plt.ylabel('optimal dimension')
-        # plt.show()
-        #
-        # # plot theta
-        # counter = 0
-        # for noise in [0.0, 2.0, 4.0]:
-        #     df_noise = df[(df['noise'] == noise)]
-        #
-        #     plt.plot(df_noise['variance'], df_noise['theta'], color=col.to_rgb(tab20_colors(counter)), label=noise)
-        #     plt.plot(df_noise['variance'], df_noise['min_theta'], color=col.to_rgb(tab20_colors(counter)),
-        #              linestyle='--')
-        #     plt.plot(df_noise['variance'], df_noise['max_theta'], color=col.to_rgb(tab20_colors(counter)),
-        #              linestyle='--')
-        #     plt.scatter(df_noise['variance'], df_noise['theta'], color=col.to_rgb(tab20_colors(counter)), marker=markers[counter])
-        #     counter += 1
-        #
-        # plt.xlabel('variance among replicates')
-        # plt.ylabel('optimal theta')
-        # plt.show()
+            # Plot thetas
+            for var in [0, 3, 6, 9]:
+                df_var = df[(df['length'] == length) & (df['noise'] == noise) & (df['variance'] == var)]
+                df_var = df_var.dropna(axis=1)
 
+                colnames = ['theta_' + str(i) + '_mean' for i in range(1, 11)]
+                colnames = list(set(df_var.columns).intersection(set(colnames)))
+                colnames = sorted(colnames)
+                means = df_var[colnames].values[0]
+
+                colnames = ['theta_' + str(i) + '_10th' for i in range(1, 11)]
+                colnames = list(set(df_var.columns).intersection(set(colnames)))
+                colnames = sorted(colnames)
+                percentiles_10 = df_var[colnames].values[0]
+
+                colnames = ['theta_' + str(i) + '_90th' for i in range(1, 11)]
+                colnames = list(set(df_var.columns).intersection(set(colnames)))
+                colnames = sorted(colnames)
+                percentiles_90 = df_var[colnames].values[0]
+
+                plt.plot(np.arange(1, len(means) + 1, 1), means, label=var)
+                plt.scatter(np.arange(1, len(means) + 1, 1), means)
+
+                #plt.fill_between(np.arange(1, len(means) + 1, 1), percentiles_10, percentiles_90, alpha=.1)
+
+            plt.title(f'rho = {rho}, length = {length}, noise = {noise}')
+            plt.legend(title='variance')
+            plt.xlabel("theta")
+            plt.ylabel("RMSE")
+
+            file_name = path + f"theta/rho = {rho}, n_repl = {n_repl}, length = {length}, noise = {noise}, test = {test}.png"
+            plt.savefig(file_name)
+            plt.show()
 
 def calculate_summary(combined_data):
-    df = []
+    ultimate_df = pd.DataFrame()
+
+    columns_dim = ['dim_' + str(i) for i in range(1, 11)]
+    columns_theta = ['theta_' + str(i) for i in range(0, 11)]
+    columns = columns_dim + columns_theta
 
     for noise in [0.0, 2.0, 4.0]:
-        for variance in np.arange(0, 11, 1):
+        for variance in np.arange(0.0, 12.0, 3.0):
             for length in [25, 50, 75, 100]:
+
                 df_noise = combined_data[(combined_data['noise'] == noise) & (combined_data['variance'] == variance) & (combined_data['length'] == length)]
+                percentiles_df = df_noise[columns].describe(percentiles=[0.1, 0.9]).loc[['mean', '10%', '90%']]
 
-                mean_RMSE = np.mean(df_noise['RMSE'])
-                mean_dim = np.median(df_noise['dim'])
-                mean_theta = np.median(df_noise['theta'])
+                combined_df = pd.DataFrame()
+                for column in percentiles_df:
+                    column_df = pd.DataFrame({
+                                f'{column}_10th': [percentiles_df[column][1]],
+                                f'{column}_90th': [percentiles_df[column][2]],
+                                f'{column}_mean': [percentiles_df[column][0]]
+                            })
+                    combined_df = pd.concat([combined_df, column_df], axis=1)
 
-                min_RMSE = np.percentile(df_noise['RMSE'], 10)
-                max_RMSE = np.percentile(df_noise['RMSE'], 90)
-                min_dim = np.percentile(df_noise['dim'], 10)
-                max_dim = np.percentile(df_noise['dim'], 90)
-                min_theta = np.percentile(df_noise['theta'], 10)
-                max_theta = np.percentile(df_noise['theta'], 90)
+                combined_df['noise'] = noise
+                combined_df['variance'] = variance
+                combined_df['length'] = length
 
+                ultimate_df = pd.concat([ultimate_df, combined_df], axis=0)
 
-                row = {'noise': noise, 'variance': variance, 'length': length,
-                       'min_RMSE': min_RMSE,
-                       'max_RMSE': max_RMSE,
-                       'mean_RMSE': mean_RMSE,
-                       'min_dim': min_dim,
-                       'max_dim': max_dim,
-                       'mean_dim': mean_dim,
-                       'min_theta': min_theta,
-                       'max_theta': max_theta,
-                       'mean_theta': mean_theta,
-                       'theta': mean_theta}
-                df.append(row)
-
-    return pd.DataFrame(df)
+    return ultimate_df
 
 if __name__ == "__main__":
 
+    rho = 20
+    test = 'begin_conditions'
+
     # Specify the folder path containing CSV files
-    folder_path = 'C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/hyperparameters for replicates/rho = 28/begin_conditions'
+    folder_path = f'C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/hyperparameters for replicates/rho = {rho}/{test}'
 
     # Call the function to combine CSV files
     combined_data = combine_csv_files(folder_path)
@@ -164,4 +161,4 @@ if __name__ == "__main__":
     combined_data = calculate_summary(combined_data)
 
     # Display the combined DataFrame
-    make_figures(combined_data)
+    make_figures(combined_data, rho, 8, test)

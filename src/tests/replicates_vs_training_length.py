@@ -47,7 +47,7 @@ def sample_initial_points(n_points, rho):
     return initial_vecs
 
 
-def sample_multiple_initial_values(vec_0, n_points, n_repl, obs_noise, var):
+def sample_multiple_initial_values(vec_0, n_points, n_repl, obs_noise, var, rho):
 
     list_x, list_t, list_preprocessing = [], [], []
 
@@ -56,7 +56,7 @@ def sample_multiple_initial_values(vec_0, n_points, n_repl, obs_noise, var):
         x_0 = np.random.normal(vec_0[0], var)
         y_0 = np.random.normal(vec_0[1], var)
         z_0 = np.random.normal(vec_0[2], var)
-        x, t = sample_lorenz([x_0, y_0, z_0], [10, 28, 8/3], n_points, obs_noise, n_points)
+        x, t = sample_lorenz([x_0, y_0, z_0], [10, rho, 8/3], n_points, obs_noise, n_points)
 
         # Preprocessing
         x, preprocessing_info = preprocessing(x, t, loc=i)
@@ -70,14 +70,14 @@ def sample_multiple_initial_values(vec_0, n_points, n_repl, obs_noise, var):
     return list_x, list_t, list_preprocessing
 
 
-def sample_multiple_rhos(vec_0, n_points, n_repl, obs_noise, var):
+def sample_multiple_rhos(vec_0, n_points, n_repl, obs_noise, var, rho):
 
     list_x, list_t, list_preprocessing = [], [], []
 
     i = 0
     while i < n_repl:
-        rho = np.random.normal(28, var)
-        x, t = sample_lorenz(vec_0, [10, rho, 8/3], n_points, obs_noise, n_points)
+        rho_ = np.random.normal(rho, var)
+        x, t = sample_lorenz(vec_0, [10, rho_, 8/3], n_points, obs_noise, n_points)
 
         # Preprocessing
         x, preprocessing_info = preprocessing(x, t, loc=i+1)
@@ -91,7 +91,7 @@ def sample_multiple_rhos(vec_0, n_points, n_repl, obs_noise, var):
     return list_x, list_t, list_preprocessing
 
 
-def perform_EDM(og, initial_point, length, n_replicates, noise, variance, max_dim=10, test="begin_conditions"):
+def perform_EDM(og, initial_point, length, n_replicates, noise, variance, max_dim=10, test="begin_conditions", rho=28):
 
     x, t, preprocessing_info = og[0], og[1], og[2]
     original_length = len(x) - 5
@@ -99,10 +99,10 @@ def perform_EDM(og, initial_point, length, n_replicates, noise, variance, max_di
     if n_replicates > 0:
         if test == "begin_conditions":
             new_x, new_t, _ = sample_multiple_initial_values(initial_point, length, n_replicates,
-                                                                             noise, variance)
+                                                                             noise, variance, rho)
         else:
             new_x, new_t, _ = sample_multiple_rhos(initial_point, length, n_replicates,
-                                                                   noise, variance)
+                                                                   noise, variance, rho)
 
         # from original time series, select last values and add these to the list of replicates
         xs, ts = [x[-(length+5):]] + new_x, [t[-(length+5):]] + new_t
@@ -185,7 +185,7 @@ def calculate_boxplot_values(data):
     }
 
 
-def process_pair(pair, initial_points, original_length, replicates_length, test="begin_conditions"):
+def process_pair(pair, initial_points, original_length, replicates_length, test="begin_conditions", rho=28):
 
     noise, variance = pair
     list_of_n_replicates = []
@@ -200,17 +200,17 @@ def process_pair(pair, initial_points, original_length, replicates_length, test=
         v0 = initial_points[i]
 
         # Sample original trajectory
-        x, t = sample_lorenz(v0, [10, 28, 8/3], original_length + 9, noise)
+        x, t = sample_lorenz(v0, [10, rho, 8/3], original_length + 9, noise)
         x, preprocessing_info = preprocessing(x, t, loc=0)
         og_ts = [x, t, preprocessing_info]
 
         # Perform EDM with on original time series
-        RMSE_full_ts = perform_EDM(og_ts, v0, original_length, 0, noise, 0, E_og, test)['RMSE']
+        RMSE_full_ts = perform_EDM(og_ts, v0, original_length, 0, noise, 0, E_og, test, rho)['RMSE']
 
         # Repeat for last part of original trajectory
         # and add replicates
         for n_replicates in range(0,33):
-            RMSE_replicates = perform_EDM(og_ts, v0, replicates_length, n_replicates, noise, variance, E_new, test)['RMSE']
+            RMSE_replicates = perform_EDM(og_ts, v0, replicates_length, n_replicates, noise, variance, E_new, test, rho)['RMSE']
 
             if RMSE_replicates <= RMSE_full_ts:
                 list_of_n_replicates.append(n_replicates)
@@ -219,27 +219,29 @@ def process_pair(pair, initial_points, original_length, replicates_length, test=
             if n_replicates == 32 and RMSE_replicates > RMSE_full_ts:
                 list_of_n_replicates.append(None)
 
-    try:
-        boxplot_values = calculate_boxplot_values(list_of_n_replicates)
-    except:
-        boxplot_values = {
-            'min': None,
-            'max': None,
-            'median': None,
-            'q1': None,
-            'q3': None,
-            'iqr': None,
-            'lower_whisker': None,
-            'upper_whisker': None,
-            'outliers': None,
-            'none_count': None
-        }
+    # try:
+    #     boxplot_values = calculate_boxplot_values(list_of_n_replicates)
+    # except:
+    #     boxplot_values = {
+    #         'min': None,
+    #         'max': None,
+    #         'median': None,
+    #         'q1': None,
+    #         'q3': None,
+    #         'iqr': None,
+    #         'lower_whisker': None,
+    #         'upper_whisker': None,
+    #         'outliers': None,
+    #         'none_count': None
+    #     }
 
-    row = {'noise': noise, 'variance': variance, 'min': boxplot_values['min'], 'max': boxplot_values['max'],
-           'median': boxplot_values['median'],
-           'q1': boxplot_values['q1'], 'q3': boxplot_values['q3'], 'iqr': boxplot_values['iqr'],
-           'lower_whisker': boxplot_values['lower_whisker'], 'upper_whisker': boxplot_values['upper_whisker'],
-           'outliers': boxplot_values['outliers'], 'none_count': boxplot_values['none_count']}
+    # row = {'noise': noise, 'variance': variance, 'min': boxplot_values['min'], 'max': boxplot_values['max'],
+    #        'median': boxplot_values['median'],
+    #        'q1': boxplot_values['q1'], 'q3': boxplot_values['q3'], 'iqr': boxplot_values['iqr'],
+    #        'lower_whisker': boxplot_values['lower_whisker'], 'upper_whisker': boxplot_values['upper_whisker'],
+    #        'outliers': boxplot_values['outliers'], 'none_count': boxplot_values['none_count']}
+
+    row = {'noise': noise, 'variance': variance, 'n_replicates': list_of_n_replicates}
 
     return row
 
@@ -252,24 +254,23 @@ def run_imap_multiprocessing(func, argument_list, num_processes):
     return result_list
 
 
-def loop(original_length, replicates_length):
+def loop(original_length, replicates_length, rho=28):
 
-    n_iterations = 50
-    rho = 28
-    noise_levels = [0.0, 1.0, 2.0, 3.0, 4.0, 5.0]
+    n_iterations = 100
+    noise_levels = [0.0, 1.0, 2.0]
     begin_cond_var = [1.0, 5.5, 10.0]
     rho_var = [1.0, 3.0, 5.0]
-    n_processes = 4
+    n_processes = 8
 
     # Sample initial point for each iteration
     initial_points = sample_initial_points(n_iterations, rho)
 
     # Define partial function
     partial_function_begin_cond = partial(process_pair, initial_points=initial_points, original_length=original_length,
-                                          replicates_length=replicates_length, test='begin_conditions')
+                                          replicates_length=replicates_length, test='begin_conditions', rho=rho)
 
     partial_function_rho = partial(process_pair, initial_points=initial_points, original_length=original_length,
-                                   replicates_length=replicates_length, test='rho')
+                                   replicates_length=replicates_length, test='rho', rho=rho)
 
     # First, test with variance in begin conditions
     argument_list = list(product(noise_levels, begin_cond_var))
@@ -293,26 +294,28 @@ def loop(original_length, replicates_length):
 
 
 if __name__ == '__main__':
+    for rho in [28, 20]:
+        print("--------- rho = {rho} ---------".format(rho=rho))
 
-    print("Starting experiment with 192 vs 96")
-    original_length = 192
-    replicates_length = 96
-    loop(original_length, replicates_length)
+        # print("Starting experiment with 192 vs 96")
+        # original_length = 192
+        # replicates_length = 96
+        # loop(original_length, replicates_length, rho)
 
-    print("Starting experiment with 96 vs 48")
-    original_length = 96
-    replicates_length = 48
-    loop(original_length, replicates_length)
+        print("Starting experiment with 96 vs 48")
+        original_length = 96
+        replicates_length = 48
+        loop(original_length, replicates_length, rho)
 
-    print("Starting experiment with 48 vs 24")
-    original_length = 48
-    replicates_length = 24
-    loop(original_length, replicates_length)
+        print("Starting experiment with 48 vs 24")
+        original_length = 48
+        replicates_length = 24
+        loop(original_length, replicates_length, rho)
 
-    print("Starting experiment with 24 vs 12")
-    original_length = 24
-    replicates_length = 12
-    loop(original_length, replicates_length)
+        print("Starting experiment with 24 vs 12")
+        original_length = 24
+        replicates_length = 12
+        loop(original_length, replicates_length, rho)
 
 
 

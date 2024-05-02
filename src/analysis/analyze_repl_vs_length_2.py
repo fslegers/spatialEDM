@@ -36,11 +36,10 @@ def from_csv_to_df(path, filename, test):
         df_file['Rho'] = rho
         df_file['Original_Length'] = original_length
         df_file['Replicates_Length'] = replicates_length
-        df_file['Factor'] = int(original_length / replicates_length)
 
-        # Transform none count to none percentage
-        df_file['none_count'] = (
-                df_file['none_count'] / 100.0)
+        # # Transform none count to none percentage
+        # df_file['none_count'] = (
+        #         df_file['none_count'] / 100.0)
 
     return df_file
 
