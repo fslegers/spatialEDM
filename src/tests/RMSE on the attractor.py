@@ -29,7 +29,10 @@ def get_one_RMSE(i, x, t, length, hor):
     # Transform time series into EDM library
     collection = []
     for j in np.arange(length+hor):
-        collection.append(Point(x_subset[j], t_subset[j], "", 0))
+        try:
+            collection.append(Point(x_subset[j], t_subset[j], "", 0))
+        except:
+            return -1, -1
 
     # Split train and test set
     ts_train = collection[:-hor]
@@ -58,9 +61,9 @@ def create_plots_RMSE(x, y, z, t, RMSEs, ts, length, noise, hor):
 
     # plot shadow of trajectory
     ax.plot(x, y, z, alpha=.1)
-    ax.set_xlabel("x")
-    ax.set_ylabel("y")
-    ax.set_zlabel("z")
+    ax.set_xlabel("x", labelpad=0)
+    ax.set_ylabel("y", labelpad=0)
+    ax.set_zlabel("z", labelpad=0)
 
     # define color mapping function
     max_rmse = np.percentile(RMSEs, 95)
@@ -87,14 +90,15 @@ def create_plots_RMSE(x, y, z, t, RMSEs, ts, length, noise, hor):
     fig.colorbar(sm, label='RMSE')
 
     plt.tight_layout()
-    plt.savefig(f'C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/RMSE on the attractor/len={length}, noise={noise}, hor={hor}.png', dpi=500)
+    #plt.savefig(f'C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/RMSE on the attractor/len={length}, noise={noise}, hor={hor}.png', dpi=500)
+    plt.savefig(f'C:/Users/fleur/Documents/Resultaten/RMSE on the attractor/len={length}, noise={noise}, hor={hor}.png', dpi=400)
 
 def loop(noise, length, hor):
     rho = 28
     lorenz_length = 3000
 
     # Sample Lorenz trajectory
-    x, y, z, t = simulate_lorenz([-10.59488751,-15.39807062,22.89394584], [10.0, rho, 8.0/3.0], lorenz_length * 5, lorenz_length * 5 / 1000, noise)
+    x, y, z, t = simulate_lorenz([0, 1, 0], [10.0, rho, 8.0/3.0], lorenz_length * 5, lorenz_length * 5 / 1000, noise)
     x, y, z, t = sample_lorenz(x, y, z, t)
     t = np.arange(lorenz_length)
 
@@ -111,8 +115,7 @@ def loop(noise, length, hor):
 
 if __name__ == '__main__':
 
-    noise = 0.0
-    for hor in [3, 4, 5, 6, 7, 8, 9, 10]:
-        for length in [25, 50, 75, 100, 150]:
-            loop(noise, length, hor)
+    for hor in [1]:
+        for length in [25, 50, 75, 100]:
+            loop(0.0, length, hor)
 

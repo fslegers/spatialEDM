@@ -39,7 +39,7 @@ def from_csv_to_df(path, filename, test):
 
         # Transform none count to none percentage
         df_file['none_count'] = (
-                df_file['none_count'] / 50.0)
+                df_file['none_count'] / 100.0)
 
     return df_file
 
@@ -72,7 +72,7 @@ def make_big_box_plot(df):
     fig, axes = plt.subplots(nrows=2, ncols=1, figsize=(10, 10))
     plt.rc('font', size=15)
 
-    for rho_index in [0, 1]:
+    for rho_index in [0]:
         test = 'begin_conditions'
         var = 1.0
         rho = [28, 20][rho_index]
@@ -171,7 +171,8 @@ def make_big_box_plot(df):
 
 
     plt.tight_layout(pad=3)
-    path_name = "C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/length vs replicates/test set = 10/Figures/"
+    #path_name = "C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/length vs replicates/test set = 10/Figures/"
+    path_name = "C:/Users/fleur/Documents/Resultaten/length vs replicates/Figures/"
     plt.savefig(path_name + f"{test}.png", dpi=300)
     plt.show()
 
@@ -186,7 +187,7 @@ def make_small_box_plot(df):
     #tab20b_colors = plt.cm.get_cmap('tab20b', 20)
     #c5 = col.to_rgb(tab20b_colors(17))
 
-    for rho in [20, 28]:
+    for rho in [28]:
         for test, variance_list in [('begin_conditions', [1.0, 5.5, 10.0]), ('rho', [1.0, 3.0, 5.0])]:
             for var in variance_list:
                 df_test = df[(df['Test'] == test) & (df['variance'] == var) & (df['Rho'] == rho)]
@@ -247,7 +248,6 @@ def make_small_box_plot(df):
                 ax.set_xticks([1.75, 4.25, 6.75])
                 ax.set_xticklabels([r'$\sigma_{noise}$ = 0.0', r'$\sigma_{noise}$ = 1.0', r'$\sigma_{noise}$ = 2.0'])
                 ax.set_yticks(range(0, 5))
-                ax.set_ytickslabels(fontsize=15)
 
                 # Create legend
                 lab1 = r"192 $\rightarrow$ 96"
@@ -270,7 +270,8 @@ def make_small_box_plot(df):
                           fancybox=True, shadow=True, ncol=5)
 
                 #plt.tight_layout()
-                path_name = "C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/length vs replicates/test set = 10/Figures/"
+                #path_name = "C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/length vs replicates/test set = 10/Figures/"
+                path_name = "C:/Users/fleur/Documents/Resultaten/length vs replicates/Figures/"
                 plt.savefig(path_name + f"{test}, variance = {var}.png")
                 plt.show()
 
@@ -278,10 +279,13 @@ def make_small_box_plot(df):
 if __name__ == "__main__":
 
     # Specify the folder path containing CSV files
-    folder_path = 'C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/length vs replicates/test set = 10'
+    #folder_path = 'C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/length vs replicates/test set = 10'
+    folder_path = 'C:/Users/fleur/Documents/Resultaten/length vs replicates'
 
     # Call the function to combine CSV files
     combined_data = combine_csv_files(folder_path)
 
     # Display the combined DataFrame
-    make_big_box_plot(combined_data)
+    # make_big_box_plot(combined_data)
+
+    make_small_box_plot(combined_data)

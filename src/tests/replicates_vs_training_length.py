@@ -9,12 +9,13 @@ from src.simulate_lorenz import *
 def sample_lorenz(vec_0, params, n_points, obs_noise, offset=0):
     x, y, z, t = simulate_lorenz(vec_0, params, n_points * 100, n_points, obs_noise)
     x, t = sample_from_ts(x, t, sampling_interval=5, n_points=n_points)
+    y, _ = sample_from_ts(y, t, sampling_interval=5, n_points=n_points)
+    z, _ = sample_from_ts(z, t, sampling_interval=5, n_points=n_points)
     t = [i + offset for i in range(len(t))]
-    return x, t
+    return x, y, z, t
 
 
 def calculate_performance(result, preprocessing_info):
-
     # Reverse preprocessing
     result = reverse_preprocessing(result, preprocessing_info)
 
@@ -33,7 +34,6 @@ def calculate_performance(result, preprocessing_info):
 
 
 def sample_initial_points(n_points, rho):
-
     # simulate one big giant Lorenz attractor without transient
     x, y, z, t = simulate_lorenz([1, 1, 1], [10, rho, 8 / 3], 2000, 35, 0)
     x, y, z = x[1000:], y[1000:], z[1000:]
@@ -47,8 +47,7 @@ def sample_initial_points(n_points, rho):
     return initial_vecs
 
 
-def sample_multiple_initial_values(vec_0, n_points, n_repl, obs_noise, var):
-
+def sample_multiple_initial_values(vec_0, n_points, n_repl, obs_noise, var, rho):
     list_x, list_t, list_preprocessing = [], [], []
 
     i = 0
@@ -56,7 +55,7 @@ def sample_multiple_initial_values(vec_0, n_points, n_repl, obs_noise, var):
         x_0 = np.random.normal(vec_0[0], var)
         y_0 = np.random.normal(vec_0[1], var)
         z_0 = np.random.normal(vec_0[2], var)
-        x, t = sample_lorenz([x_0, y_0, z_0], [10, 28, 8/3], n_points, obs_noise, n_points)
+        x, y, z, t = sample_lorenz([x_0, y_0, z_0], [10, rho, 8/3], n_points, obs_noise, n_points)
 
         # Preprocessing
         x, preprocessing_info = preprocessing(x, t, loc=i)
@@ -70,14 +69,14 @@ def sample_multiple_initial_values(vec_0, n_points, n_repl, obs_noise, var):
     return list_x, list_t, list_preprocessing
 
 
-def sample_multiple_rhos(vec_0, n_points, n_repl, obs_noise, var):
+def sample_multiple_rhos(vec_0, n_points, n_repl, obs_noise, var, rho):
 
     list_x, list_t, list_preprocessing = [], [], []
 
     i = 0
     while i < n_repl:
-        rho = np.random.normal(28, var)
-        x, t = sample_lorenz(vec_0, [10, rho, 8/3], n_points, obs_noise, n_points)
+        rho_ = np.random.normal(rho, var)
+        x, y, z, t = sample_lorenz(vec_0, [10, rho_, 8/3], n_points, obs_noise, n_points)
 
         # Preprocessing
         x, preprocessing_info = preprocessing(x, t, loc=i+1)
@@ -91,7 +90,7 @@ def sample_multiple_rhos(vec_0, n_points, n_repl, obs_noise, var):
     return list_x, list_t, list_preprocessing
 
 
-def perform_EDM(og, initial_point, length, n_replicates, noise, variance, max_dim=10, test="begin_conditions"):
+def perform_EDM(og, initial_point, length, n_replicates, noise, variance, max_dim=10, test="begin_conditions", rho=28):
 
     x, t, preprocessing_info = og[0], og[1], og[2]
     original_length = len(x) - 5
@@ -99,10 +98,10 @@ def perform_EDM(og, initial_point, length, n_replicates, noise, variance, max_di
     if n_replicates > 0:
         if test == "begin_conditions":
             new_x, new_t, _ = sample_multiple_initial_values(initial_point, length, n_replicates,
-                                                                             noise, variance)
+                                                                             noise, variance, rho)
         else:
             new_x, new_t, _ = sample_multiple_rhos(initial_point, length, n_replicates,
-                                                                   noise, variance)
+                                                                   noise, variance, rho)
 
         # from original time series, select last values and add these to the list of replicates
         xs, ts = [x[-(length+5):]] + new_x, [t[-(length+5):]] + new_t
@@ -185,7 +184,7 @@ def calculate_boxplot_values(data):
     }
 
 
-def process_pair(pair, initial_points, original_length, replicates_length, test="begin_conditions"):
+def process_pair(pair, initial_points, original_length, replicates_length, test="begin_conditions", rho=28):
 
     noise, variance = pair
     list_of_n_replicates = []
@@ -195,22 +194,22 @@ def process_pair(pair, initial_points, original_length, replicates_length, test=
     E_new = int(np.sqrt(replicates_length))
 
     for i in range(len(initial_points)):
-        print(i)
 
         v0 = initial_points[i]
 
         # Sample original trajectory
-        x, t = sample_lorenz(v0, [10, 28, 8/3], original_length + 9, noise)
+        x, y, z, t = sample_lorenz(v0, [10, rho, 8/3], original_length + 9, noise)
+        next_v0 = [x[replicates_length-1], y[replicates_length-1], z[replicates_length-1]]
         x, preprocessing_info = preprocessing(x, t, loc=0)
         og_ts = [x, t, preprocessing_info]
 
         # Perform EDM with on original time series
-        RMSE_full_ts = perform_EDM(og_ts, v0, original_length, 0, noise, 0, E_og, test)['RMSE']
+        RMSE_full_ts = perform_EDM(og_ts, v0, original_length, 0, noise, 0, E_og, test, rho)['RMSE']
 
         # Repeat for last part of original trajectory
         # and add replicates
         for n_replicates in range(0,33):
-            RMSE_replicates = perform_EDM(og_ts, v0, replicates_length, n_replicates, noise, variance, E_new, test)['RMSE']
+            RMSE_replicates = perform_EDM(og_ts, next_v0, replicates_length, n_replicates, noise, variance, E_new, test, rho)['RMSE']
 
             if RMSE_replicates <= RMSE_full_ts:
                 list_of_n_replicates.append(n_replicates)
@@ -252,34 +251,34 @@ def run_imap_multiprocessing(func, argument_list, num_processes):
     return result_list
 
 
-def loop(original_length, replicates_length):
 
-    n_iterations = 50
-    rho = 28
-    noise_levels = [0.0, 1.0, 2.0, 3.0, 4.0, 5.0]
+def loop(original_length, replicates_length, rho):
+    n_iterations = 100
+    noise_levels = [0.0, 1.0, 2.0]
     begin_cond_var = [1.0, 5.5, 10.0]
     rho_var = [1.0, 3.0, 5.0]
-    n_processes = 4
+    n_processes = 12
 
     # Sample initial point for each iteration
     initial_points = sample_initial_points(n_iterations, rho)
 
     # Define partial function
     partial_function_begin_cond = partial(process_pair, initial_points=initial_points, original_length=original_length,
-                                          replicates_length=replicates_length, test='begin_conditions')
+                                          replicates_length=replicates_length, test='begin_conditions', rho=rho)
 
     partial_function_rho = partial(process_pair, initial_points=initial_points, original_length=original_length,
-                                   replicates_length=replicates_length, test='rho')
+                                   replicates_length=replicates_length, test='rho', rho=rho)
 
-    # First, test with variance in begin conditions
-    argument_list = list(product(noise_levels, begin_cond_var))
-    result_list = run_imap_multiprocessing(func=partial_function_begin_cond,
-                                           argument_list=argument_list,
-                                           num_processes=n_processes)
-    data = pd.DataFrame(result_list)
-    file_name = f"C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/length vs replicates/test set = 5/begin conditions/{original_length} vs {replicates_length}, rho = {rho}.csv"
-    data.to_csv(file_name, index=False)
-    del(argument_list, result_list, data)
+    # # First, test with variance in begin conditions
+    # argument_list = list(product(noise_levels, begin_cond_var))
+    # result_list = run_imap_multiprocessing(func=partial_function_begin_cond,
+    #                                        argument_list=argument_list,
+    #                                        num_processes=n_processes)
+    # data = pd.DataFrame(result_list)
+    # #file_name = f"C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/length vs replicates/test set = 5/begin conditions/{original_length} vs {replicates_length}, rho = {rho}.csv"
+    # file_name = f"C:/Users/fleur/Documents/Resultaten/length vs replicates/begin conditions/{original_length} vs {replicates_length}, rho = {rho}.csv"
+    # data.to_csv(file_name, index=False)
+    # del(argument_list, result_list, data)
 
     # Then, test with variance in parameter rho
     argument_list = list(product(noise_levels, rho_var))
@@ -287,32 +286,62 @@ def loop(original_length, replicates_length):
                                            argument_list=argument_list,
                                            num_processes=n_processes)
     data = pd.DataFrame(result_list)
-    file_name = f"C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/length vs replicates/test set = 5/rho/{original_length} vs {replicates_length}, rho = {rho}.csv"
+    #file_name = f"C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/length vs replicates/test set = 5/rho/{original_length} vs {replicates_length}, rho = {rho}.csv"
+    file_name = f"C:/Users/fleur/Documents/Resultaten/length vs replicates/rho/{original_length} vs {replicates_length}, rho = {rho}.csv"
     data.to_csv(file_name, index=False)
     del (argument_list, result_list, data)
 
 
 if __name__ == '__main__':
 
-    print("Starting experiment with 192 vs 96")
-    original_length = 192
-    replicates_length = 96
-    loop(original_length, replicates_length)
-
-    print("Starting experiment with 96 vs 48")
-    original_length = 96
-    replicates_length = 48
-    loop(original_length, replicates_length)
+    print("Starting experiment with 24 vs 12")
+    original_length = 24
+    replicates_length = 12
+    loop(original_length, replicates_length, 28)
 
     print("Starting experiment with 48 vs 24")
     original_length = 48
     replicates_length = 24
-    loop(original_length, replicates_length)
+    loop(original_length, replicates_length, 28)
+
+    print("Starting experiment with 96 vs 48")
+    original_length = 96
+    replicates_length = 48
+    loop(original_length, replicates_length, 28)
+
+    print("Starting experiment with 192 vs 96")
+    original_length = 192
+    replicates_length = 96
+    loop(original_length, replicates_length, 28)
+
+    ############################################
+
+    print("--------------- rho = 20 -----------------")
 
     print("Starting experiment with 24 vs 12")
     original_length = 24
     replicates_length = 12
-    loop(original_length, replicates_length)
+    loop(original_length, replicates_length, 20)
+
+    print("Starting experiment with 48 vs 24")
+    original_length = 48
+    replicates_length = 24
+    loop(original_length, replicates_length, 20)
+
+    print("Starting experiment with 96 vs 48")
+    original_length = 96
+    replicates_length = 48
+    loop(original_length, replicates_length, 20)
+
+    print("Starting experiment with 192 vs 96")
+    original_length = 192
+    replicates_length = 96
+    loop(original_length, replicates_length, 20)
+
+
+
+
+
 
 
 
