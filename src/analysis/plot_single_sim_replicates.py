@@ -11,40 +11,153 @@ import os
 
 
 def plot_RMSE_vs_horizon(df, rho):
+    plt.rc('font', size=14)
     colors = plt.get_cmap('tab10')
     markers = ['s', 'o', 'v']
 
-    for len in [25, 50, 75, 100, 125, 150, 175, 200, 225, 250, 275, 300]:
+    for len in df['training_length'].unique():
         df_sub = df[df['training_length'] == len]
-        plt.figure()
+        fig, ax1 = plt.subplots()
 
         # Iterate over groups and plot RMSE
         i = 0
-        for noise in [0.0, 2.0, 4.0]:
+        for noise in df['noise'].unique():
+
             color = colors(i)
-            #marker = markers[i]
+            marker = markers[i]
+
             df_noise = df_sub[df_sub['noise'] == noise]
-            plt.plot(df_noise['hor'], df_noise['mean_RMSE'], label=f'{noise}', color=color)
-            plt.scatter(df_noise['hor'], df_noise['mean_RMSE'], color=color)
-            plt.fill_between(df_noise['hor'], df_noise['min_RMSE'], df_noise['max_RMSE'], alpha=.1, color=color)
-            #plt.plot(df_noise['hor'], df_noise['min_RMSE'], color=color, linestyle="--")
-            #plt.plot(df_noise['hor'], df_noise['max_RMSE'], color=color, linestyle="--")
+            ax1.plot(df_noise['hor'], df_noise['mean_RMSE'], color=color)
+            ax1.scatter(df_noise['hor'], df_noise['mean_RMSE'], color=color, label=f'{noise}', marker=marker, s=50)
+
+            ax1.fill_between(df_noise['hor'], df_noise['min_RMSE'], df_noise['max_RMSE'], alpha=.1, color=color, zorder=1)
+            ax1.plot(df_noise['hor'], df_noise['max_RMSE'], linestyle="--", dashes=(5,5), color=color, alpha=.5)
+            ax1.plot(df_noise['hor'], df_noise['min_RMSE'], linestyle="--", dashes=(5,5), color=color, alpha=.5)
+
             i += 1
 
         # Set labels and title
-        plt.xlabel('horizon')
-        plt.ylabel('RMSE')
-        plt.title(f'Training length = {len}')
+        #ax1.set_xlabel('horizon')
+        #ax1.set_ylabel('RMSE')
+
+        # if rho == 28:
+        #     ax1.set_ylim((0, 25))
+        # else:
+        #     ax1.set_ylim((-0.2, 10))
+        #     # ax2.set_ylim((-0.001, 0.02))
+        #     ax1.set_yticks(np.arange(0.0, 11.0, 1.0))
+
+        #plt.title(f'Training length = {len}')
         plt.legend(title='Noise')
-        plt.tight_layout()
+        #plt.tight_layout()
 
         # Show or save the plot
-        path = f"C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/single time series/rho = {rho}/RMSE, horizon/len={len}.png"
+        path = f"C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/single time series 2/rho = {rho}/RMSE, horizon/len={len}.png"
         plt.savefig(path)
 
         #plt.savefig(file_path)
         time.sleep(2)
         plt.close()
+
+
+def plot_RMSE_vs_horizon_minus_noise(df, rho):
+    plt.rc('font', size=14)
+    colors = plt.get_cmap('tab10')
+    markers = ['s', 'o', 'v']
+
+    for len in [25, 50, 75, 100, 125, 150, 175, 200, 225, 250, 275, 300]:
+        df_sub = df[df['training_length'] == len]
+        fig, ax1 = plt.subplots()
+
+        # Iterate over groups and plot RMSE
+        i = 0
+        for noise in [0.0, 2.0, 4.0]:
+
+            color = colors(i)
+            marker = markers[i]
+
+            if (len == 25 and rho == 28 and noise == -1.0) or (rho == 20 and noise == -1.0):
+                ax2 = ax1.twinx()
+                df_noise = df_sub[df_sub['noise'] == noise]
+                ax2.plot(df_noise['hor'], df_noise['mean_RMSE']-noise, label=f'{noise}', color=color)
+                ax2.scatter(df_noise['hor'], df_noise['mean_RMSE']-noise, color=color, marker=marker, s=50)
+                ax2.fill_between(df_noise['hor'], df_noise['min_RMSE']-noise, df_noise['max_RMSE']-noise, alpha=.1, color=color)
+
+                ax2.plot(df_noise['hor'], df_noise['max_RMSE']-noise, linestyle="--", dashes=(5, 5), color=color, alpha=.7)
+                ax2.plot(df_noise['hor'], df_noise['min_RMSE']-noise, linestyle="--", dashes=(5, 5), color=color, alpha=.7)
+                ax2.tick_params(axis='y', colors=color)
+
+            else:
+                df_noise = df_sub[df_sub['noise'] == noise]
+                ax1.plot(df_noise['hor'], df_noise['mean_RMSE']-noise, label=f'{noise}', color=color)
+                ax1.scatter(df_noise['hor'], df_noise['mean_RMSE']-noise, color=color, marker=marker, s=50)
+
+                ax1.fill_between(df_noise['hor'], df_noise['min_RMSE']-noise, df_noise['max_RMSE']-noise, alpha=.1, color=color, zorder=1)
+                ax1.plot(df_noise['hor'], df_noise['max_RMSE']-noise, linestyle="--", dashes=(5,5), color=color, alpha=.5)
+                ax1.plot(df_noise['hor'], df_noise['min_RMSE']-noise, linestyle="--", dashes=(5,5), color=color, alpha=.5)
+
+            i += 1
+
+        # Set labels and title
+        #ax1.set_xlabel('horizon')
+        #ax1.set_ylabel('RMSE')
+
+        if rho == 28:
+            ax1.set_ylim((0, 22))
+        else:
+            ax1.set_ylim((-0.1, 5))
+            #ax2.set_ylim((-0.001, 0.02))
+            #ax2.set_yticks(np.arange(0.0, 0.0201, 0.005))
+
+        #plt.title(f'Training length = {len}')
+        #plt.legend(title='Noise')
+        #plt.tight_layout()
+
+        # Show or save the plot
+        path = f"C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/single time series/rho = {rho}/RMSE, horizon minus noise/len={len}.png"
+        plt.savefig(path)
+
+        #plt.savefig(file_path)
+        time.sleep(2)
+        plt.close()
+
+
+def plot_RMSE_vs_horizon_zoom(df, rho):
+    plt.rc('font', size=20)
+    colors = plt.get_cmap('tab10')
+    markers = ['s', 'o', 'v']
+
+    for len in [25, 50, 75, 100, 125, 150, 175, 200, 225, 250, 275, 300]:
+        df_sub = df[df['training_length'] == len]
+        fig, ax1 = plt.subplots()
+
+        # Iterate over groups and plot RMSE
+        for noise in [0.0]:
+
+            color = colors(0)
+            marker = markers[0]
+
+            df_noise = df_sub[df_sub['noise'] == noise]
+            ax1.plot(df_noise['hor'], df_noise['mean_RMSE'], label=f'{noise}', color=color)
+            ax1.scatter(df_noise['hor'], df_noise['mean_RMSE'], color=color, marker=marker, s=50)
+
+            ax1.fill_between(df_noise['hor'], df_noise['min_RMSE'], df_noise['max_RMSE'], alpha=.1, color=color, zorder=1)
+            ax1.plot(df_noise['hor'], df_noise['max_RMSE'], linestyle="--", dashes=(5,5), color=color, alpha=.5)
+            ax1.plot(df_noise['hor'], df_noise['min_RMSE'], linestyle="--", dashes=(5,5), color=color, alpha=.5)
+
+        #plt.title(f'Training length = {len}')
+        #plt.legend(title='Noise')
+        plt.locator_params(axis='y', nbins=4)
+        plt.tight_layout()
+
+        # Show or save the plot
+        path = f"C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/single time series/rho = {rho}/RMSE, horizon/zoom, len={len}.png"
+        plt.savefig(path)
+
+        #plt.savefig(file_path)
+        time.sleep(2)
+        plt.close()
+
 
 # def plot_corr_vs_horizon(df, rho):
 #     colors = plt.get_cmap('tab10')
@@ -252,20 +365,20 @@ def plot_RMSE_vs_interval(df, rho):
 
             #plt.savefig(file_path)
             time.sleep(2)
-            plt.close()
+            plt.close()\
 
-def plot_6(df_28, df_20):
+
+def plot_4(df_28, df_20):
 
     colors = plt.get_cmap('tab10')
     markers = ['s', 'o', 'v']
     plt.rc('font', size=16)
 
-    fig, axs = plt.subplots(2, 3, figsize=(16, 8))
-    plt.subplots_adjust(hspace=1.3, wspace=0.0)
+    fig, axs = plt.subplots(2, 2, figsize=(11, 8))
+    plt.subplots_adjust(hspace=0.3)
 
+    # First plot (Rho = 28, Length = 25)
     df = df_28
-    # First plot
-    # Length = 25, RMSE vs horizon
     df_sub = df[df['training_length'] == 25]
 
     i = 0
@@ -281,8 +394,7 @@ def plot_6(df_28, df_20):
             ax1.plot(df_noise['hor'], df_noise['max_RMSE'], color=color, linewidth=1, alpha=.8)
             ax1.plot(df_noise['hor'], df_noise['mean_RMSE'], label=f'{noise}', color=color, linewidth=2.0)
             ax1.scatter(df_noise['hor'], df_noise['mean_RMSE'], color=color, marker=marker, s=60)
-            #ax1.set_ylabel('RMSE for noise=0.0')
-            ax1.set_ylim(-10, max(df_sub[df_sub['noise'] == 0.0]['mean_RMSE']) * 1.1)  # Adjust the multiplier as needed
+            ax1.set_ylim(-10, max(df_sub[df_sub['noise'] == 0.0]['mean_RMSE']) * 1.1)
             ax1.tick_params(axis='y', colors=color)
         else:
             axs[0,0].fill_between(df_noise['hor'], df_noise['min_RMSE'], df_noise['max_RMSE'], alpha=.1, color=color)
@@ -292,51 +404,10 @@ def plot_6(df_28, df_20):
             axs[0, 0].scatter(df_noise['hor'], df_noise['mean_RMSE'], color=color, marker=marker, s=60)
         i += 1
 
-    #axs[0,0].set_xlabel('horizon)
-    axs[0,0].set_ylabel('RMSE')
+    #axs[0,0].set_ylabel('RMSE')
 
-    # Second plot
-    # Length = 75, RMSE vs horizon
+    # Third plot (Rho = 28, Length = 25)
     df_sub = df[df['training_length'] == 75]
-
-    i = 0
-    for noise in [0.0, 2.0, 4.0]:
-        color = colors(i)
-        marker = markers[i]
-        df_noise = df_sub[df_sub['noise'] == noise]
-        axs[0, 1].fill_between(df_noise['hor'], df_noise['min_RMSE'], df_noise['max_RMSE'], alpha=.1, color=color)
-        axs[0, 1].plot(df_noise['hor'], df_noise['min_RMSE'], color=color, linewidth=1, alpha=.8)
-        axs[0, 1].plot(df_noise['hor'], df_noise['max_RMSE'], color=color, linewidth=1, alpha=.8)
-        axs[0, 1].plot(df_noise['hor'], df_noise['mean_RMSE'], label=f'{noise}', color=color, linewidth=2.0)
-        axs[0, 1].scatter(df_noise['hor'], df_noise['mean_RMSE'], color=color, marker=marker, s=60)
-        i += 1
-
-    #axs[0, 1].set_xlabel('horizon)
-    #axs[0, 1].set_ylabel('RMSE')
-
-    # third plot
-    # RMSE vs length
-    i = 0
-    for noise in [0.0, 2.0, 4.0]:
-        color = colors(i)
-        marker = markers[i]
-        df_noise = df[(df['noise'] == noise) & (df['hor'] == 1)]
-        df_noise = df_noise[df_noise['training_length'] <= 200]
-        axs[0, 2].fill_between(df_noise['training_length'], df_noise['min_RMSE'], df_noise['max_RMSE'], alpha=.1, color=color)
-        axs[0, 2].plot(df_noise['training_length'], df_noise['min_RMSE'], color=color, linewidth=1, alpha=.8)
-        axs[0, 2].plot(df_noise['training_length'], df_noise['max_RMSE'], color=color, linewidth=1, alpha=.8)
-        axs[0, 2].plot(df_noise['training_length'], df_noise['mean_RMSE'], label=f'{noise}', color=color, linewidth=2.0)
-        axs[0, 2].scatter(df_noise['training_length'], df_noise['mean_RMSE'], color=color, marker=marker, s=60)
-        i += 1
-
-    # Set labels and title
-    #axs[0, 2].set_xlabel('Training length')
-    #axs[0, 2].set_ylabel('RMSE')
-
-    df = df_20
-    # 4th plot
-    # Length = 25, RMSE vs horizon
-    df_sub = df[df['training_length'] == 25]
 
     i = 0
     for noise in [0.0, 2.0, 4.0]:
@@ -350,11 +421,27 @@ def plot_6(df_28, df_20):
         axs[1, 0].scatter(df_noise['hor'], df_noise['mean_RMSE'], color=color, marker=marker, s=60)
         i += 1
 
-    axs[1, 0].set_xlabel('horizon')
-    axs[1, 0].set_ylabel('RMSE')
 
-    # 5th plot
-    # Length = 75, RMSE vs horizon
+    # 2nd plot (Rho = 20, Length = 25)
+    df = df_20
+    df_sub = df[df['training_length'] == 25]
+
+    i = 0
+    for noise in [0.0, 2.0, 4.0]:
+        color = colors(i)
+        marker = markers[i]
+        df_noise = df_sub[df_sub['noise'] == noise]
+        axs[0, 1].fill_between(df_noise['hor'], df_noise['min_RMSE'], df_noise['max_RMSE'], alpha=.1, color=color)
+        axs[0, 1].plot(df_noise['hor'], df_noise['min_RMSE'], color=color, linewidth=1, alpha=.8)
+        axs[0, 1].plot(df_noise['hor'], df_noise['max_RMSE'], color=color, linewidth=1, alpha=.8)
+        axs[0, 1].plot(df_noise['hor'], df_noise['mean_RMSE'], label=f'{noise}', color=color, linewidth=2.0)
+        axs[0, 1].scatter(df_noise['hor'], df_noise['mean_RMSE'], color=color, marker=marker, s=60)
+        i += 1
+
+    # axs[1, 0].set_xlabel('horizon')
+    # axs[1, 0].set_ylabel('RMSE')
+
+    # 4th plot (Rho = 20, Length = 75)
     df_sub = df[df['training_length'] == 75]
 
     i = 0
@@ -369,59 +456,45 @@ def plot_6(df_28, df_20):
         axs[1, 1].scatter(df_noise['hor'], df_noise['mean_RMSE'], color=color, marker=marker, s=60)
         i += 1
 
-    axs[1, 1].set_xlabel('horizon')
+    #axs[1, 1].set_xlabel('horizon')
     #axs[1, 1].set_ylabel('RMSE')
-
-    # 6th plot
-    # RMSE vs length
-    i = 0
-    for noise in [0.0, 2.0, 4.0]:
-        color = colors(i)
-        marker = markers[i]
-        df_noise = df[(df['noise'] == noise) & (df['hor'] == 1)]
-        df_noise = df_noise[df_noise['training_length'] <= 200]
-        axs[1, 2].fill_between(df_noise['training_length'], df_noise['min_RMSE'], df_noise['max_RMSE'], alpha=.1,color=color)
-        axs[1, 2].plot(df_noise['training_length'], df_noise['min_RMSE'], color=color, linewidth=1, alpha=.8)
-        axs[1, 2].plot(df_noise['training_length'], df_noise['max_RMSE'], color=color, linewidth=1, alpha=.8)
-        axs[1, 2].plot(df_noise['training_length'], df_noise['mean_RMSE'], label=f'{noise}', color=color, linewidth=2.0)
-        axs[1, 2].scatter(df_noise['training_length'], df_noise['mean_RMSE'], color=color, marker=marker, s=50)
-        i += 1
-
-    # Set labels and title
-    axs[1, 2].set_xlabel('training length')
-    #axs[1, 2].set_ylabel('RMSE')
 
 
     # Add (a) - (f)
-    axs[0, 0].text(0.5, -0.25, '(a)', transform=axs[0, 0].transAxes)
-    axs[0, 1].text(0.5, -0.25, '(b)', transform=axs[0, 1].transAxes)
-    axs[0, 2].text(0.5, -0.25, '(c)', transform=axs[0, 2].transAxes)
-    axs[1, 0].text(0.5, -0.35, '(d)', transform=axs[1, 0].transAxes)
-    axs[1, 1].text(0.5, -0.35, '(e)', transform=axs[1, 1].transAxes)
-    axs[1, 2].text(0.5, -0.35, '(f)', transform=axs[1, 2].transAxes)
+    axs[0, 0].text(0.5, -0.12, '(a)', transform=axs[0, 0].transAxes)
+    axs[0, 1].text(0.5, -0.12, '(b)', transform=axs[0, 1].transAxes)
+    axs[1, 0].text(0.5, -0.22, '(d)', transform=axs[1, 0].transAxes)
+    axs[1, 1].text(0.5, -0.22, '(e)', transform=axs[1, 1].transAxes)
 
-    axs[0, 0].text(-0.3, 0.37, r'$\rho = 28$', transform=axs[0, 0].transAxes, fontsize=16, rotation=90)
-    axs[1, 0].text(-0.3, 0.37, r'$\rho = 20$', transform=axs[1, 0].transAxes, fontsize=16, rotation=90)
+    axs[0,0].set_xticklabels([])
+    axs[0,1].set_xticklabels([])
+
+    axs[1,0].set_yticklabels([])
+    axs[1,1].set_yticklabels([])
+
+    # axs[0, 0].text(-0.3, 0.37, r'$\rho = 28$', transform=axs[0, 0].transAxes, fontsize=16, rotation=90)
+    # axs[1, 0].text(-0.3, 0.37, r'$\rho = 20$', transform=axs[1, 0].transAxes, fontsize=16, rotation=90)
 
     # axs[0, 0].text(1.0, 1.3, r'Training length', transform=axs[0, 0].transAxes, fontsize=18)
     # axs[0, 0].text(0.5, 1.1, r'$25$', transform=axs[0, 0].transAxes, fontsize=16)
     # axs[0, 1].text(0.5, 1.1, r'$75$', transform=axs[0, 1].transAxes, fontsize=16)
 
-    fig.tight_layout(pad=4.3, h_pad=3, w_pad=0)
+    #fig.tight_layout(pad=4.3, h_pad=3, w_pad=0)
 
-    blue_patch = mlines.Line2D([], [], color=colors(0), marker=markers[0], linestyle='None',
-                               markersize=10, label='0.0')
-    orange_patch = mlines.Line2D([], [], color=colors(1), marker=markers[1], linestyle='None',
-                               markersize=10, label='2.0')
-    green_patch = mlines.Line2D([], [], color=colors(2), marker=markers[2], linestyle='None',
-                               markersize=10, label='4.0')
+    # blue_patch = mlines.Line2D([], [], color=colors(0), marker=markers[0], linestyle='None',
+    #                            markersize=10, label='0.0')
+    # orange_patch = mlines.Line2D([], [], color=colors(1), marker=markers[1], linestyle='None',
+    #                            markersize=10, label='2.0')
+    # green_patch = mlines.Line2D([], [], color=colors(2), marker=markers[2], linestyle='None',
+    #                            markersize=10, label='4.0')
+    #
+    # fig.legend(title=r'$\sigma_{noise}$', handles = [blue_patch, orange_patch, green_patch], ncol=3,
+    #            loc='lower center', bbox_to_anchor = (0.55,-0.05))
 
-    fig.legend(title=r'\sigma_{noise}', handles = [blue_patch, orange_patch, green_patch], ncol=3,
-               loc='lower center', bbox_to_anchor = (0.55,-0.05))
-
-    path = f"C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/6 plots.png"
+    path = f"C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/4 plots.png"
     plt.savefig(path, dpi = 300)
     plt.show()
+
 
 def make_pdf(rho):
     path = f"C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/single time series/rho = {rho}"
@@ -466,29 +539,29 @@ def make_pdf(rho):
 
 if __name__ == '__main__':
 
-    # Load CSV file into a pandas DataFrame
-    # path = f"C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/single time series/rho = 28/mean and percentiles.csv"
-    # df_28 = pd.read_csv(path)
+    #Load CSV file into a pandas DataFrame
+    path = f"C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/single time series 2/rho = 28/mean and percentiles.csv"
+    df_28 = pd.read_csv(path)
 
     # plot_RMSE_vs_noise(df_28, 28)
-    # plot_RMSE_vs_horizon(df_28, 28)
+    plot_RMSE_vs_horizon(df_28, 28)
     # plot_RMSE_vs_length(df_28, 28)
 
-    # path = f"C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/single time series/rho = 20/mean and percentiles.csv"
-    # df_20 = pd.read_csv(path)
+    path = f"C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/single time series 2/rho = 20/mean and percentiles.csv"
+    df_20 = pd.read_csv(path)
 
     # plot_RMSE_vs_noise(df_20, 20)
-    # plot_RMSE_vs_horizon(df_20, 20)
+    plot_RMSE_vs_horizon(df_20, 20)
     # plot_RMSE_vs_length(df_20,20)
 
-    # plot_6(df_28, df_20)
+    # plot_4(df_28, df_20)
 
     # make_pdf(28)
     # make_pdf(20)
 
-    path = f"C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/single time series/sampling interval/rho = 20/mean and percentiles.csv"
-    df = pd.read_csv(path)
-    plot_RMSE_vs_interval(df, 20)
+    # path = f"C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/single time series/sampling interval/rho = 20/mean and percentiles.csv"
+    # df = pd.read_csv(path)
+    # plot_RMSE_vs_interval(df, 20)
 
 
 

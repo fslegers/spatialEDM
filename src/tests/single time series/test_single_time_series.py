@@ -172,10 +172,10 @@ def repeatedly_do_EDM(n_iterations=100, max_horizon=1, rho=28):
 
 if __name__ == "__main__":
     rho = 28
-    repeatedly_do_EDM(n_iterations=1000, max_horizon=10, rho=rho)
+    repeatedly_do_EDM(n_iterations=1, max_horizon=10, rho=rho)
 
     rho = 20
-    repeatedly_do_EDM(n_iterations=1000, max_horizon=10, rho=rho)
+    repeatedly_do_EDM(n_iterations=1, max_horizon=10, rho=rho)
 
 
 

@@ -41,18 +41,21 @@ def get_parameters_from_name(file):
     noise = float(noise)
 
     # sampling
-    interval_i = file.find('interval = ') + 11
-    interval = file[interval_i:interval_i + 2]
-    interval = interval.replace(".", "")
-    interval = int(interval)
+    try:
+        interval_i = file.find('interval = ') + 11
+        interval = file[interval_i:interval_i + 2]
+        interval = interval.replace(".", "")
+        interval = int(interval)
+        return len, noise, interval
 
-    return len, noise, interval
+    except:
+        return len, noise
 
 
 def calculate_RMSEs(rho):
     # Load all CSV files from the folder into a pandas DataFrame
-    # folder_path = (f"C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/single time series/rho = {rho}")
-    folder_path = (f"C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/single time series/sampling interval/rho = {rho}")
+    folder_path = (f"C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/single time series 2/rho = {rho}")
+    # folder_path = (f"C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/single time series/sampling interval/rho = {rho}")
 
     df = pd.DataFrame({'training_length': [], 'noise': [], 'hor': [], 'iter': [], 'RMSE': [], 'MAE': [], 'corr': []})
     for filename in os.listdir(folder_path):
@@ -76,14 +79,14 @@ def calculate_RMSEs(rho):
     # plot_predictions(df)
 
     #save_path = f'C:/Users/fleur/Documents/Resultaten/summarized'
-    # save_path = f"C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/single time series/rho = {rho}/summarized.csv"
-    save_path = f"C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/single time series/sampling interval/rho = {rho}/summarized.csv"
+    save_path = f"C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/single time series 2/rho = {rho}/summarized.csv"
+    # save_path = f"C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/single time series/sampling interval/rho = {rho}/summarized.csv"
     df.to_csv(save_path)
 
 def calculate_RMSEs_interval(rho):
     # Load all CSV files from the folder into a pandas DataFrame
-    # folder_path = (f"C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/single time series/rho = {rho}")
-    folder_path = (f"C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/single time series/sampling interval/rho = {rho}")
+    folder_path = (f"C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/single time series 2/rho = {rho}")
+    #folder_path = (f"C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/single time series 2/sampling interval/rho = {rho}")
 
     df = pd.DataFrame({'training_length': [], 'noise': [], 'hor': [], 'sampling_interval': [], 'iter': [], 'RMSE': [], 'MAE': [], 'corr': []})
     for filename in os.listdir(folder_path):
@@ -107,23 +110,23 @@ def calculate_RMSEs_interval(rho):
     # plot_predictions(df)
 
     #save_path = f'C:/Users/fleur/Documents/Resultaten/summarized'
-    # save_path = f"C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/single time series/rho = {rho}/summarized.csv"
-    save_path = f"C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/single time series/sampling interval/rho = {rho}/summarized.csv"
+    save_path = f"C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/single time series 2/rho = {rho}/summarized.csv"
+    # save_path = f"C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/single time series/sampling interval/rho = {rho}/summarized.csv"
     df.to_csv(save_path)
 
 
 def summarize_results(rho):
+    folder_path = f"C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/single time series 2/rho = {rho}/summarized.csv"
     # folder_path = f"C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/single time series/rho = {rho}/summarized.csv"
-    folder_path = f"C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/single time series/sampling interval/rho = {rho}/summarized.csv"
 
     df = pd.read_csv(folder_path, index_col=False)
     df = df.iloc[:, 1:]
     df = df.drop(['iter'], axis=1)
 
-    min = df.groupby(['training_length', 'noise', 'hor'], as_index=False).quantile(0.1) # 10%quantile
+    min = df.groupby(['training_length', 'noise', 'hor'], as_index=False).quantile(0.25) # 25% quantile
     min = min.rename(columns={'RMSE': 'min_RMSE', 'MAE': 'min_MAE', 'corr': 'min_corr'})
 
-    max = df.groupby(['training_length', 'noise', 'hor'], as_index=False).quantile(0.9) # 90% quantile
+    max = df.groupby(['training_length', 'noise', 'hor'], as_index=False).quantile(0.75)# 75% quantile
     max = max.rename(columns={'RMSE': 'max_RMSE', 'MAE': 'max_MAE', 'corr': 'max_corr'})
 
     mean = df.groupby(['training_length', 'noise', 'hor'], as_index=False).mean()
@@ -133,18 +136,18 @@ def summarize_results(rho):
     df = df.merge(mean, how='inner', on=['training_length', 'noise', 'hor'])
 
     # path = f"C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/single time series/rho = {rho}/mean and percentiles.csv"
-    path = f"C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/single time series/sampling interval/rho = {rho}/mean and percentiles.csv"
+    path = f"C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/single time series 2/rho = {rho}/mean and percentiles.csv"
     df.to_csv(path)
 
 def summarize_results_interval(rho):
     # folder_path = f"C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/single time series/rho = {rho}/summarized.csv"
-    folder_path = f"C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/single time series/sampling interval/rho = {rho}/summarized.csv"
+    folder_path = f"C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/single time series 2/rho = {rho}/summarized.csv"
 
     df = pd.read_csv(folder_path, index_col=False)
     df = df.iloc[:, 1:]
     df = df.drop(['iter'], axis=1)
 
-    min = df.groupby(['training_length', 'noise', 'hor', 'sampling_interval'], as_index=False).quantile(0.1) # 10%quantile
+    min = df.groupby(['training_length', 'noise', 'hor', 'sampling_interval'], as_index=False).quantile(0.1) # 10% quantile
     min = min.rename(columns={'RMSE': 'min_RMSE', 'MAE': 'min_MAE', 'corr': 'min_corr'})
 
     max = df.groupby(['training_length', 'noise', 'hor', 'sampling_interval'], as_index=False).quantile(0.9) # 90% quantile
@@ -157,19 +160,21 @@ def summarize_results_interval(rho):
     df = df.merge(mean, how='inner', on=['training_length', 'noise', 'hor', 'sampling_interval'])
 
     # path = f"C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/single time series/rho = {rho}/mean and percentiles.csv"
-    path = f"C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/single time series/sampling interval/rho = {rho}/mean and percentiles.csv"
+    path = f"C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/single time series 2/rho = {rho}/mean and percentiles.csv"
     df.to_csv(path)
 
 
 if __name__ == "__main__":
 
+    print('rho = 28')
     rho = 28
-    calculate_RMSEs_interval(rho)
-    summarize_results_interval(rho)
+    calculate_RMSEs(rho)
+    summarize_results(rho)
 
+    print('rho = 20')
     rho = 20
-    calculate_RMSEs_interval(rho)
-    summarize_results_interval(rho)
+    calculate_RMSEs(rho)
+    summarize_results(rho)
 
 
 

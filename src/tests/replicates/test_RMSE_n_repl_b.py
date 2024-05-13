@@ -11,9 +11,8 @@ def sample_lorenz(vec_0, params, n_points, obs_noise, offset=0):
     t = [i + offset for i in range(len(t))]
     return x, t
 
-def calculate_performance(result, preprocessing_info):
-    # Reverse preprocessing
-    result = reverse_preprocessing(result, preprocessing_info)
+
+def calculate_performance(result):
 
     # Calculate performance measures
     diff = np.subtract(result['obs'], result['pred'])
@@ -34,10 +33,14 @@ def perform_EDM(index, length, n_replicates, noise, variance, x, t):
     max_dim = int(np.sqrt(length))
 
     xs, ts = [], []
+
     # Get original trajectory
     x_, t_ = x[index:index + length + 10], [time for time in np.arange(0, length + 10)]
+
+    x_, _ = preprocessing(x_, t_, loc=0)
     x_ = x_ + np.random.normal(0, noise, size=len(x_))
-    x_, preprocessing_info = preprocessing(x_, t_, loc=0)
+    x_, _ = preprocessing(x_, t_, loc=0)
+
     xs.append(x_)
     ts.append(t_)
 
@@ -49,7 +52,8 @@ def perform_EDM(index, length, n_replicates, noise, variance, x, t):
 
     for j in repl_indices:
         x_, t_ = x[j:j+length], [time for time in np.arange(0, length)]
-        x_ = x_ + np.random.normal(0, noise, size=len(x_))
+        x_, _ = preprocessing(x_, t_, loc=j)
+        x_ += np.random.normal(0, noise, size=len(x_))
         x_, _ = preprocessing(x_, t_, loc=j)
         xs.append(x_)
         ts.append(t_)
@@ -73,19 +77,19 @@ def perform_EDM(index, length, n_replicates, noise, variance, x, t):
 
     # Measure performance
     smap = smap.dropna(how='any')
-    results = calculate_performance(smap, [preprocessing_info])
+    results = calculate_performance(smap)
 
     return results
 
 
-def partial_function(variance, indices, n_replicates, length, noise, rho, x, t):
+def partial_function(n_repl, indices, variance, length, noise, rho, x, t):
     results = []
 
     for i in indices:
-        partial_result = perform_EDM(i, length, n_replicates, noise, variance, x, t)
+        partial_result = perform_EDM(i,length, n_repl, noise, variance, x, t)
         RMSE = partial_result['RMSE']
 
-        row = {'noise': noise, 'variance': variance, 'rho': rho, 'length': length, 'n_repl': n_replicates,
+        row = {'noise': noise, 'variance': variance, 'rho': rho, 'length': length, 'n_repl': n_repl,
                'RMSE': RMSE}
 
         results.append(row)
@@ -102,15 +106,15 @@ def run_imap_multiprocessing(func, argument_list, num_processes):
     return combined_df
 
 
-def loop(rho, n_repl, length, noise):
+def loop(rho, length, noise, var):
     np.random.seed(123)
 
     n_processes = 8
-    n_iterations = 250
-    variances = np.arange(0, 100, 5)
+    n_iterations = 100
+    n_repl = [0, 1, 2, 4, 8, 12, 16]
 
     # Sample initial point for each iteration
-    indices = np.random.randint(100, 900-length, size=n_iterations)
+    indices = np.random.randint(100, 900 - length, size=n_iterations)
 
     x, _, _, t = simulate_lorenz([1, 1, 1], [10, rho, 8 / 3], 8000, 140, 0)
     x, t = sample_from_ts(x[1000:], t[1000:], sampling_interval=5, n_points=1000)
@@ -119,7 +123,7 @@ def loop(rho, n_repl, length, noise):
     # Define partial function
     partial_func = partial(partial_function,
                            indices=indices,
-                           n_replicates=n_repl,
+                           variance=var,
                            length=length,
                            noise=noise,
                            rho=rho,
@@ -129,22 +133,28 @@ def loop(rho, n_repl, length, noise):
     # First, test with variance in begin conditions
     result_list = run_imap_multiprocessing(func=partial_func,
                                            num_processes=n_processes,
-                                           argument_list=variances)
+                                           argument_list=n_repl)
 
     data = pd.DataFrame(result_list)
     file_name = (f"C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/"
-                 f"RMSE vs variance among replicates/test_2/rho = {rho}/"
-                 f"length = {length}, noise = {noise}, n_repl = {n_repl}.csv")
+                 f"RMSE vs n_repl/rho = {rho}/IC_on_attractor/"
+                 f"length = {length}, noise = {noise}, var = {var}.csv")
     data.to_csv(file_name, index=False)
     del (result_list, data)
 
 
 if __name__ == "__main__":
 
+    print('started round 1/2')
     rho = 28
-    for n_repl in [2, 4, 8, 16]:
-        for length in [25, 50, 75]:
-            for noise in [0.0, 2.0, 4.0]:
-                loop(rho, n_repl, length, noise)
+    for length in [25, 75]:
+        for noise in [0.0, 0.05, 0.1, 0.25]:
+            for var in [1, 5, 10]:
+                loop(rho, length, noise, var)
 
-
+    print('started round 2/4')
+    rho = 20
+    for length in [25, 75]:
+        for noise in [0.0, 0.05, 0.1, 0.25]:
+            for var in [1, 5, 10]:
+                loop(rho, length, noise, var)

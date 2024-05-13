@@ -6,17 +6,17 @@ from tqdm import tqdm
 from src.classes import *
 from src.simulate_lorenz import *
 
-# def sample_lorenz(vec_0, params, n_points, obs_noise, offset=0):
-#     x, y, z, t = simulate_lorenz(vec_0, params, n_points * 100, n_points, obs_noise)
-#     x, t = sample_from_ts(x, t, sampling_interval=5, n_points=n_points)
-#     t = [i + offset for i in range(len(t))]
-#     return x, t
+def sample_lorenz(vec_0, params, n_points, obs_noise, offset=0):
+    x, y, z, t = simulate_lorenz(vec_0, params, n_points * 100, n_points, obs_noise)
+    x, t = sample_from_ts(x, t, sampling_interval=5, n_points=n_points)
+    t = [i + offset for i in range(len(t))]
+    return x, t
 
 
-def calculate_performance(result, preprocessing_info):
+def calculate_performance(result):
 
-    # Reverse preprocessing
-    result = reverse_preprocessing(result, preprocessing_info)
+    # # Reverse preprocessing
+    # result = reverse_preprocessing(result, preprocessing_info)
 
     # Calculate performance measures
     diff = np.subtract(result['obs'], result['pred'])
@@ -49,25 +49,26 @@ def sample_initial_points(n_points, rho):
 
 def sample_multiple_initial_values(vec_0, n_points, n_repl, obs_noise, var, rho):
 
-    list_x, list_t, list_preprocessing = [], [], []
+    list_x, list_t = [], []
 
     i = 0
     while i < n_repl:
         x_0 = np.random.normal(vec_0[0], var)
         y_0 = np.random.normal(vec_0[1], var)
         z_0 = np.random.normal(vec_0[2], var)
-        x, t = sample_lorenz([x_0, y_0, z_0], [10, rho, 8/3], n_points, obs_noise, n_points)
+        x, t = sample_lorenz([x_0, y_0, z_0], [10, rho, 8/3], n_points, 0.0, n_points)
 
         # Preprocessing
-        x, preprocessing_info = preprocessing(x, t, loc=i)
-        list_preprocessing.append(preprocessing_info)
+        x, _ = preprocessing(x, t, loc=i)
+        x += np.random.normal(0.0, obs_noise, size=len(x))
+        x, _ = preprocessing(x, t, loc=i)
 
         list_x.append(x)
         list_t.append(t)
 
         i += 1
 
-    return list_x, list_t, list_preprocessing
+    return list_x, list_t
 
 
 def perform_EDM_og(full_x, index, length, noise, max_dim=10):
@@ -76,11 +77,10 @@ def perform_EDM_og(full_x, index, length, noise, max_dim=10):
     x = full_x[index : index + length + 5]
     t = [j for j in range(len(x))]
 
-    # Add noise
-    x = x + np.random.normal(0, noise, size=len(x))
-
-    # Preprocessing
-    x, preprocessing_info = preprocessing(x, t, loc=0)
+    # Add noise + preprocessing
+    x, _ = preprocessing(x, t, loc=0)
+    x += np.random.normal(0, noise, size=len(x))
+    x, _ = preprocessing(x, t, loc=0)
 
     # Turn into library
     collection = []
@@ -100,7 +100,7 @@ def perform_EDM_og(full_x, index, length, noise, max_dim=10):
 
     # Measure performance
     smap = smap.dropna()
-    results = calculate_performance(smap, [preprocessing_info])
+    results = calculate_performance(smap)
 
     return results
 
@@ -120,14 +120,9 @@ def perform_EDM_repl(full_x, index, length, n_repl, noise, var, max_dim=10):
 
         t = [j for j in range(len(x))]
 
-        # Add noise
-        x = x + np.random.normal(0, noise, size=len(x))
-
-        # Preprocessing
-        if i == 0:
-            x, preprocessing_info = preprocessing(x, t, loc=0)
-        else:
-            x, _ = preprocessing(x, t, loc=i)
+        x, _ = preprocessing(x, t, loc=i)
+        x += np.random.normal(0, noise, size=len(x))
+        x, _ = preprocessing(x, t, loc=i)
 
         # Turn into library
         for j in range(len(x)):
@@ -154,7 +149,7 @@ def perform_EDM_repl(full_x, index, length, n_repl, noise, var, max_dim=10):
     smap = smap.dropna()
 
     try:
-        results = calculate_performance(smap, [preprocessing_info])
+        results = calculate_performance(smap)
     except:
         print('Error calculating performance')
 
@@ -176,7 +171,7 @@ def process_pair_b(pair, initial_points, x, original_length, replicates_length):
         RMSE_full_ts = perform_EDM_og(x, index, original_length, noise, E_og)['RMSE']
 
         # Repeat for last half of original trajectory and add replicates
-        for n_replicates in range(0,33):
+        for n_replicates in range(0,17):
             index_new = index + replicates_length
             RMSE_replicates = perform_EDM_repl(x, index_new, replicates_length, n_replicates, noise, variance, E_new)['RMSE']
 
@@ -184,8 +179,8 @@ def process_pair_b(pair, initial_points, x, original_length, replicates_length):
                 list_of_n_replicates.append(n_replicates)
                 break
 
-            if n_replicates == 32 and RMSE_replicates > RMSE_full_ts:
-                list_of_n_replicates.append(None)
+            if n_replicates == 16 and RMSE_replicates > RMSE_full_ts:
+                list_of_n_replicates.append(18)
 
     row = {'noise': noise, 'variance': variance, 'n_replicates': list_of_n_replicates}
 
@@ -203,8 +198,8 @@ def run_imap_multiprocessing(func, argument_list, num_processes):
 def loop_b(original_length, replicates_length, rho=28):
 
     n_iterations = 100
-    noise_levels = [0.0, 1.0, 2.0]
-    t_repl = [1, 5, 10, 25]
+    noise_levels = [0.0, 0.05, 0.1, 0.25]
+    t_repl = [1.0, 5.0, 10.0]
     n_processes = 8
 
     # simulate one Lorenz attractor without transient

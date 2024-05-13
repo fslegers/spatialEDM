@@ -1,6 +1,8 @@
 import math
 import os
 import pandas as pd
+import seaborn as sns
+import ast
 import numpy as np
 from matplotlib import pyplot as plt
 from itertools import product
@@ -37,10 +39,6 @@ def from_csv_to_df(path, filename, test):
         df_file['Original_Length'] = original_length
         df_file['Replicates_Length'] = replicates_length
 
-        # # Transform none count to none percentage
-        # df_file['none_count'] = (
-        #         df_file['none_count'] / 100.0)
-
     return df_file
 
 def combine_csv_files(folder_path):
@@ -62,224 +60,162 @@ def combine_csv_files(folder_path):
         df = pd.concat([df, df_file], ignore_index=True)
 
     for filename in os.listdir(path_3):
-        df_file = from_csv_to_df(path_2, filename, 'b')
+        df_file = from_csv_to_df(path_3, filename, 'b')
         df = pd.concat([df, df_file], ignore_index=True)
 
     return df
 
-def make_big_box_plot(df):
-    tab20_colors = plt.cm.get_cmap('tab10', 10)
-    c1 = col.to_rgb(tab20_colors(0))
-    c2 = col.to_rgb(tab20_colors(1))
-    c3 = col.to_rgb(tab20_colors(2))
-    c4 = col.to_rgb(tab20_colors(3))
 
-    fig, axes = plt.subplots(nrows=2, ncols=1, figsize=(10, 10))
-    plt.rc('font', size=15)
+def make_violin_plot(df_full):
+    plt.rcParams['font.size'] = 20
+    #sns.set_style('whitegrid')
 
-    for rho_index in [0, 1]:
-        test = 'begin_conditions'
-        var = 1.0
-        rho = [28, 20][rho_index]
+    for test in df_full['Test'].unique():
+        df = df_full[df_full['Test'] == test]
 
-        df_test = df[(df['Test'] == test) & (df['variance'] == var) & (df['Rho'] == rho)]
-        boxplot_stats = []
-        none_counts = []
+        for variance, rho in product(df['variance'].unique(), df['Rho'].unique()):
 
-        for noise_level in [0.0, 1.0, 2.0]:
+            df_sub = df[(df['variance'] == variance) & (df['Test'] == test) & (df['Rho'] == rho)]
 
-            df_noise = df_test[df_test['noise'] == noise_level]
+            # Loop through unique lengths
+            df_for_plotting = pd.DataFrame()
+            df_for_swarmplot = pd.DataFrame()
+            labels = []
 
-            for original_length, replicates_length in [(192, 96), (96, 48), (48, 24), (24, 12)]:
-                df_sub = df_noise[(df_noise['Original_Length'] == original_length) & (df_noise['Replicates_Length'] == replicates_length)]
-                df_sub = df_sub.iloc[:, 2:]
+            for noise in df['noise'].unique():
+                df_sub_sub = df_sub[df_sub['noise'] == noise]
 
-                # Extract boxplot statistics
-                med = df_sub['median'].values
-                q1 = df_sub['q1'].values
-                q3 = df_sub['q3'].values
-                whislo = df_sub['q1'].values
-                whishi = df_sub['q3'].values
-                fliers = []
+                fix, axes = plt.subplots(figsize=(12, 8))
 
-                if math.isnan(df_sub['none_count'].values[0]):
-                    df_sub['none_count'].values[0] = 1.0
+                for length in df_sub_sub['Original_Length'].unique():
+                    info = df_sub_sub[df_sub_sub['Original_Length'] == length]['n_replicates']
+                    try:
+                        info = info[0]
+                    except:
+                        info = info.values[0]
+                    info = ast.literal_eval(info)
 
-                # Append boxplot statistics to list
-                boxplot_stats.append({'med': med, 'q1': q1, 'q3': q3, 'whislo': whislo, 'whishi': whishi, 'fliers': fliers})
-                none_counts.append(1.0 - df_sub['none_count'].values[0])
+                    # Change all Nones to 34
+                    info = [34 if x is None else x for x in info]
 
-        # Plot single boxplot with multiple boxes
-        axes[rho_index].bxp([boxplot_stats[i] for i in [0, 4, 8]], positions=[1, 3.5, 6], widths=0.5, showmeans=False,
-                            patch_artist=True,
-                            boxprops=dict(facecolor=c1, alpha=.8),
-                            whiskerprops=dict(color=c1, alpha=.5),
-                            medianprops=dict(color='black', linewidth=2))
-        axes[rho_index].bxp([boxplot_stats[i] for i in [1, 5, 9]], positions=[1.5, 4, 6.5], widths=0.5, showmeans=False,
-                            patch_artist=True, whiskerprops={},
-                            boxprops=dict(facecolor=c2, alpha=.8),
-                            medianprops=dict(color='black', linewidth=2))
-        axes[rho_index].bxp([boxplot_stats[i] for i in [2, 6, 10]], positions=[2, 4.5, 7], widths=0.5, showmeans=False,
-                            patch_artist=True, whiskerprops={},
-                            boxprops=dict(facecolor=c3, alpha=.8),
-                            medianprops=dict(color='black', linewidth=2))
-        axes[rho_index].bxp([boxplot_stats[i] for i in [3, 7, 11]], positions=[2.5, 5, 7.5], widths=0.5, showmeans=False,
-                            patch_artist=True,
-                            whiskerprops={},
-                            boxprops=dict(facecolor=c4, alpha=.8),
-                            medianprops=dict(color='black', linewidth=2))
+                    sub_df_for_plotting = pd.DataFrame(info, columns=['n_replicates'])
+                    sub_df_for_plotting['length'] = length
+                    sub_df_for_plotting['noise'] = noise
 
-        # # Plot scatter points for none_count on the second y-axis
-        ax2 = axes[rho_index].twinx()
-        color_list = [c1, c2, c3, c4, c1, c2, c3, c4, c1, c2, c3, c4,]
-        ax2.scatter([1, 1.5, 2, 2.5, 3.5, 4, 4.5, 5, 6, 6.5, 7, 7.5], none_counts, color=color_list, marker='o', s=150, edgecolor='black')
-        ax2.set_ylabel('Fraction of iterations')
-        ax2.set_ylim(-0.05, 1.1)
+                    label = len(sub_df_for_plotting[sub_df_for_plotting['n_replicates'] > 32])
+                    label = label/2.5
+                    label = f"{label:.1f}%"
+                    labels.append(label)
 
-        axes[rho_index].set_ylim(0, 6)
-        axes[rho_index].set_ylabel('# Replicates needed', fontsize=15)
+                    sub_df_for_stripplot = sub_df_for_plotting
+                    df_for_swarmplot = pd.concat([df_for_swarmplot, sub_df_for_stripplot])
 
-        # Indicate noise levels on x-axis
-        if rho_index == 1:
-            axes[rho_index].set_xticks([1.75, 4.25, 6.75])
-            axes[rho_index].set_xticklabels(['0.0', '1.0', '2.0'], fontsize = 15)
-        else:
-            axes[rho_index].set_xticks([1.75, 4.25, 6.75])
-            axes[rho_index].set_xticklabels(['', '', ''], fontsize = 15)
+                    sub_df_for_plotting = sub_df_for_plotting[sub_df_for_plotting['n_replicates'] <= 32]
+                    df_for_plotting = pd.concat([df_for_plotting, sub_df_for_plotting], axis=0)
 
-        axes[rho_index].set_yticks([0, 1, 2, 3, 4, 5, 6])
-        axes[rho_index].set_yticklabels(['0', '1', '2', '3', '4', '5', '6'], fontsize=15)
+            # density_norm = count: the width of a violin is proportional to the number of observations
+            sns.violinplot(data=df_for_plotting, x='noise', y='n_replicates', hue='length', palette='tab10', ax=axes,
+                           cut=0, zorder=2, density_norm='count', alpha=.75, legend=False,
+                           inner_kws=dict(box_width=12, whis_width=4, color='.2'))
 
-        # Create legend
-        lab1 = r"192 $\rightarrow$ 96"
-        lab2 = r"96 $\rightarrow$ 48"
-        lab3 = r"48 $\rightarrow$ 24"
-        lab4 = r"24 $\rightarrow$ 12"
+            sns.stripplot(data=df_for_swarmplot, x='noise', y='n_replicates', hue='length', palette='tab10', legend=False,
+                          dodge=True, jitter=0.15, size=8, alpha=.4, zorder=1)
 
-        custom_lines = [
-                Line2D([0], [0], marker='s', markersize=15, color='white', markerfacecolor=c1,
-                       markeredgecolor='black'),
-                Line2D([0], [0], marker='s', markersize=15, color='white', markerfacecolor=c2,
-                       markeredgecolor='black'),
-                Line2D([0], [0], marker='s', markersize=15, color='white', markerfacecolor=c3,
-                       markeredgecolor='black'),
-                Line2D([0], [0], marker='s', markersize=15, color='white', markerfacecolor=c4,
-                       markeredgecolor='black')]
+            axes.set_yticks(list(np.arange(0,31,5)) + [34])
+            axes.set_yticklabels([str(i) for i in np.arange(0,31,5)] + ['>32'])
 
-        if rho_index == 1:
-            box = axes[rho_index].get_position()
-            axes[rho_index].set_position([box.x0, box.y0 + box.height * 0.1, box.width, box.height * 0.95])
-            axes[rho_index].legend(custom_lines, [lab1, lab2, lab3, lab4],
-                                       loc='upper center', bbox_to_anchor=(0.5, -0.1),
-                                       fancybox=True, shadow=True, ncol=5)
+            axes.set_ylabel('')
+            axes.set_xlabel('')
 
+            axes.set_ylim((-0.5, 39))
 
+            positions = [0.08, 0.17, 0.26, 0.41, 0.5, 0.59, 0.76, 0.84, 0.92]
+            for i in range(len(positions)):
+                axes.text(positions[i], 0.95, labels[i],
+                          horizontalalignment='center',
+                          verticalalignment='center',
+                          transform=axes.transAxes,
+                          fontsize=14,
+                          rotation=45)
 
-    plt.tight_layout(pad=3)
-    path_name = "C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/length vs replicates/test set = 10/Figures/"
-    plt.savefig(path_name + f"{test}.png", dpi=300)
-    plt.show()
+            #plt.title(f'Variance: {variance}, Test: {test}, Rho: {rho}')
+            path = 'C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/length vs replicates/violinplots/'
+            plt.savefig(path+f'{variance}, {test}, {rho}.png', dpi=200)
+            plt.show()
 
-def make_box_plot(df):
-    plt.rcParams.update({'font.size': 18})
+def make_box_plot(df_full):
+    plt.rcParams['font.size'] = 20
+    #sns.set_style('whitegrid')
 
-    tab20_colors = plt.cm.get_cmap('tab10', 10)
-    c1 = col.to_rgb(tab20_colors(0))
-    c2 = col.to_rgb(tab20_colors(1))
-    c3 = col.to_rgb(tab20_colors(2))
-    c4 = col.to_rgb(tab20_colors(3))
+    for test in df_full['Test'].unique():
+        df = df_full[df_full['Test'] == test]
 
-    #tab20b_colors = plt.cm.get_cmap('tab20b', 20)
-    #c5 = col.to_rgb(tab20b_colors(17))
+        for variance, rho in product(df['variance'].unique(), df['Rho'].unique()):
 
-    for rho in [20, 28]:
-        for test, variance_list in [('begin_conditions', [1.0, 5.5, 10.0]), ('rho', [1.0, 3.0, 5.0]), ('b', [1,5,10,25])]:
-        #for test, variance_list in [('begin_conditions', [1.0, 5.5, 10.0])]:
-            for var in variance_list:
-                df_test = df[(df['Test'] == test) & (df['variance'] == var) & (df['Rho'] == rho)]
-                fig, ax = plt.subplots(figsize=(10, 5))
-                ax2 = ax.twinx()
-                boxplot_stats = []
-                none_counts = []
+            df_sub = df[(df['variance'] == variance) & (df['Test'] == test) & (df['Rho'] == rho)]
 
-                for noise_level in [0.0, 1.0, 2.0]:
-                    df_noise = df_test[df_test['noise'] == noise_level]
+            # Loop through unique lengths
+            df_for_plotting = pd.DataFrame()
+            df_for_swarmplot = pd.DataFrame()
+            labels = []
 
-                    for original_length, replicates_length in [(192, 96), (96, 48), (48, 24), (24, 12)]:
-                        df_sub = df_noise[(df_noise['Original_Length'] == original_length) & (df_noise['Replicates_Length'] == replicates_length)]
-                        df_sub = df_sub.iloc[:, 2:]
+            for noise in df['noise'].unique():
+                df_sub_sub = df_sub[df_sub['noise'] == noise]
 
-                        # Extract boxplot statistics
-                        med = df_sub['median'].values
-                        q1 = df_sub['q1'].values
-                        q3 = df_sub['q3'].values
-                        whislo = df_sub['q1'].values
-                        whishi = df_sub['q3'].values
-                        fliers = []
+                fix, axes = plt.subplots(figsize=(12, 8))
 
-                        # Append boxplot statistics to list
-                        boxplot_stats.append({'med': med, 'q1': q1, 'q3': q3, 'whislo': whislo, 'whishi': whishi, 'fliers': fliers})
-                        none_counts.append(1.0 - df_sub['none_count'].values[0])
+                for length in df_sub_sub['Original_Length'].unique():
+                    info = df_sub_sub[df_sub_sub['Original_Length'] == length]['n_replicates']
+                    try:
+                        info = info[0]
+                    except:
+                        info = info.values[0]
+                    info = ast.literal_eval(info)
 
-                # Plot single boxplot with multiple boxes
-                ax.bxp([boxplot_stats[i] for i in [0, 4, 8]], positions=[1, 3.5, 6], widths=0.5, showmeans=False, patch_artist=True,
-                       boxprops=dict(facecolor=c1, alpha=.8),
-                       whiskerprops=dict(color=c1, alpha=.5),
-                       medianprops=dict(color='black', linewidth=2))
-                ax.bxp([boxplot_stats[i] for i in [1, 5, 9]], positions=[1.5, 4, 6.5], widths=0.5, showmeans=False, patch_artist=True, whiskerprops={},
-                        boxprops=dict(facecolor=c2, alpha=.8),
-                        medianprops=dict(color='black', linewidth=2))
-                ax.bxp([boxplot_stats[i] for i in [2, 6, 10]], positions=[2, 4.5, 7], widths=0.5, showmeans=False, patch_artist=True, whiskerprops={},
-                        boxprops=dict(facecolor=c3, alpha=.8),
-                        medianprops=dict(color='black', linewidth=2))
-                ax.bxp([boxplot_stats[i] for i in [3, 7, 11]], positions=[2.5, 5, 7.5], widths=0.5, showmeans=False, patch_artist=True,
-                       whiskerprops={},
-                       boxprops=dict(facecolor=c4, alpha = .8),
-                       medianprops=dict(color='black', linewidth=2))
+                    # Change all Nones to 34
+                    info = [34 if x is None else x for x in info]
 
-                # Plot scatter points for none_count on the second y-axis
-                color_list = [c1, c2, c3, c4, c1, c2, c3, c4, c1, c2, c3, c4]
-                ax2.scatter([1, 1.5, 2, 2.5, 3.5, 4, 4.5, 5, 6, 6.5, 7, 7.5], none_counts, color=color_list, marker='o', s=150, edgecolor='black')
-                #ax2.set_ylabel('Fraction of iterations for which RMSE improved')
-                ax2.tick_params(axis='y')
-                ax2.set_ylim(0, 1.1)
-                #ax.set_ylabel('#replicates needed to improve RMSE')
+                    sub_df_for_plotting = pd.DataFrame(info, columns=['n_replicates'])
+                    sub_df_for_plotting['length'] = length
+                    sub_df_for_plotting['noise'] = noise
 
-                # Set title for the entire figure
-                # if test == "begin_conditions":
-                #     plt.title(r"$\rho_{Lorenz} = $" + str(rho) + "\n" + r"$\sigma_{begin \ conditions} = $" + str(var), fontsize=16)
-                # else:
-                #     plt.title(r"$\rho_{Lorenz} = $" + str(rho) + "\n" + r"$\sigma_{\rho} = $" + str(var), fontsize=16)
+                    label = len(sub_df_for_plotting[sub_df_for_plotting['n_replicates'] > 32])
+                    label = label/2.5
+                    label = f"{label:.1f}%"
+                    labels.append(label)
 
-                ax.set_xticks([1.75, 4.25, 6.75])
-                ax.set_xticklabels([r'$\sigma_{noise}$ = 0.0', r'$\sigma_{noise}$ = 1.0', r'$\sigma_{noise}$ = 2.0'])
-                ax.set_yticks(range(0, int(max(4, max(df_test['q3'].values)) + 1)))
-                #ax.set_ytickslabels(fontsize=15)
+                    sub_df_for_stripplot = sub_df_for_plotting
+                    df_for_swarmplot = pd.concat([df_for_swarmplot, sub_df_for_stripplot])
 
-                # Create legend
-                lab1 = r"192 $\rightarrow$ 96"
-                lab2 = r"96 $\rightarrow$ 48"
-                lab3 = r"48 $\rightarrow$ 24"
-                lab4 = r"24 $\rightarrow$ 12"
+                    sub_df_for_plotting = sub_df_for_plotting[sub_df_for_plotting['n_replicates'] <= 32]
+                    df_for_plotting = pd.concat([df_for_plotting, sub_df_for_plotting], axis=0)
 
-                custom_lines = [Line2D([0], [0], marker='s', markersize=15, color='white', markerfacecolor=c1, markeredgecolor='black'),
-                                Line2D([0], [0], marker='s', markersize=15, color='white', markerfacecolor=c2, markeredgecolor='black'),
-                                Line2D([0], [0], marker='s', markersize=15, color='white', markerfacecolor=c3, markeredgecolor='black'),
-                                Line2D([0], [0], marker='s', markersize=15, color='white', markerfacecolor=c4, markeredgecolor='black')]
+            # density_norm = count: the width of a violin is proportional to the number of observations
+            sns.boxplot(data=df_for_plotting, x='noise', y='n_replicates', hue='length', palette='tab10', ax=axes,
+                           zorder=2, legend=False, showfliers=False, whis=0)
 
-                box = ax.get_position()
-                ax.set_position([box.x0, box.y0 + box.height * 0.1,
-                                 box.width, box.height * 0.9])
+            # axes.set_yticks(list(np.arange(0,31,5)) + [34])
+            # axes.set_yticklabels([str(i) for i in np.arange(0,31,5)] + ['>32'])
 
-                # Put a legend below current axis
-                # ax.legend(custom_lines, [lab1, lab2, lab3, lab4],
-                #           loc='upper center', bbox_to_anchor=(0.5, -0.1),
-                #           fancybox=True, shadow=True, ncol=5)
+            axes.set_ylabel('')
+            axes.set_xlabel('')
 
-                #plt.tight_layout()
-                path_name = "C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/length vs replicates/test set = 5/Figures/"
-                plt.savefig(path_name + f"{test}, rho = {rho}, variance = {var}.png")
-                plt.show()
+            axes.set_ylim((0, 12))
+
+            # positions = [0.08, 0.17, 0.26, 0.41, 0.5, 0.59, 0.76, 0.84, 0.92]
+            # for i in range(len(positions)):
+            #     axes.text(positions[i], 0.95, labels[i],
+            #               horizontalalignment='center',
+            #               verticalalignment='center',
+            #               transform=axes.transAxes,
+            #               fontsize=14,
+            #               rotation=45)
+
+            #plt.title(f'Variance: {variance}, Test: {test}, Rho: {rho}')
+            path = 'C:/Users/5605407/Documents/PhD/Chapter_1/Resultaten/length vs replicates/boxplots/'
+            plt.savefig(path+f'{variance}, {test}, {rho}.png', dpi=200)
+            plt.show()
+
 
 
 if __name__ == "__main__":
@@ -291,4 +227,4 @@ if __name__ == "__main__":
     combined_data = combine_csv_files(folder_path)
 
     # Display the combined DataFrame
-    make_box_plot(combined_data)
+    make_violin_plot(combined_data)
